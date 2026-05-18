@@ -11,8 +11,10 @@ import {
   MdManageAccounts,
   MdReceiptLong,
   MdCampaign,
+  MdBarChart,
+  MdMap,
 } from "react-icons/md";
-
+import {   FaChartBar } from "react-icons/fa";
 import {
   FaHandHoldingHeart,
   FaTint,
@@ -27,6 +29,8 @@ export const DONOR_LINKS = [
   { name: "Nearby Requests", path: "/donor/nearby-requests", icon: MdLocalHospital },
   { name: "Donation History", path: "/donor/donation-history", icon: MdHistory },
   { name: "My Requests", path: "/donor/my-requests", icon: FaClipboardList },
+  { name: "Map View", path: "/donor/map", icon: MdMap },
+
 ];
 
 export const BLOOD_BANK_LINKS = [
@@ -37,6 +41,8 @@ export const BLOOD_BANK_LINKS = [
   { name: "Blood Requests", path: "/bloodbank/blood-requests", icon: FaTint },
   { name: "Camps", path: "/bloodbank/camps", icon: MdCampaign },
   { name: "Transactions", path: "/bloodbank/transactions", icon: MdReceiptLong },
+  { name: "Reports", path: "/bloodbank/reports", icon: MdBarChart },
+  { name: "Map View", path: "/bloodbank/map", icon: MdMap },
 ];
 
 export const HOSPITAL_LINKS = [
@@ -44,6 +50,8 @@ export const HOSPITAL_LINKS = [
   { name: "Profile", path: "/hospital/profile", icon: MdPerson },
   { name: "Post Blood Request", path: "/hospital/post-request", icon: MdBloodtype },
   { name: "My Requests", path: "/hospital/my-requests", icon: FaClipboardList },
+  { name: "Reports", path: "/hospital/reports", icon: FaChartBar },
+  { name: "Map View", path: "/hospital/map", icon: MdMap },
 ];
 
 export const ADMIN_LINKS = [

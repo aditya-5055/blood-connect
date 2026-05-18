@@ -1,9 +1,12 @@
 const Facility = require("../models/facilityModel");
 const Donor = require("../models/donorModel");
 const BloodRequest = require("../models/bloodRequestModel");
+const Admin = require("../models/adminModel"); // Added Admin model
 const mailSender = require("../utils/mailSender");
+const sendNotification = require("../utils/sendNotification"); // ✅ Notification Utility
 const facilityApprovedTemplate = require("../mail/templates/facilityApprovedTemplate");
 const facilityRejectedTemplate = require("../mail/templates/facilityRejectedTemplate");
+
 // ─────────────────────────────────
 // @route  GET /api/admin/pending-facilities
 // @access Admin only
@@ -12,7 +15,7 @@ exports.getPendingFacilities = async (req, res) => {
   try {
     const pendingFacilities = await Facility.find({
       status: "pending",
-    }).select("-password");
+    }).select("-password").sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -20,7 +23,6 @@ exports.getPendingFacilities = async (req, res) => {
       count: pendingFacilities.length,
       facilities: pendingFacilities,
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -29,6 +31,7 @@ exports.getPendingFacilities = async (req, res) => {
     });
   }
 };
+
 // ─────────────────────────────────
 // @route  PUT /api/admin/approve-facility/:id
 // @access Admin only
@@ -37,52 +40,48 @@ exports.approveFacility = async (req, res) => {
   try {
     const facility = await Facility.findById(req.params.id);
 
-    // 1️⃣ Check facility exists
     if (!facility) {
-      return res.status(404).json({
-        success: false,
-        message: "Facility not found",
-      });
+      return res.status(404).json({ success: false, message: "Facility not found" });
     }
 
-    // 2️⃣ Check already approved
     if (facility.status === "approved") {
-      return res.status(400).json({
-        success: false,
-        message: "Facility is already approved",
-      });
+      return res.status(400).json({ success: false, message: "Facility is already approved" });
     }
 
-    // 3️⃣ Approve facility
     facility.status = "approved";
     facility.approvedBy = req.user.id;
     facility.approvedAt = new Date();
     await facility.save();
 
-    // 4️⃣ Send approval email to facility
+    // 📧 1. Email Notification
     try {
       await mailSender(
         facility.email,
-        "Your account has been approved - Blood Donation System",
+        "Your account has been approved - BloodConnect",
         facilityApprovedTemplate(facility.name, facility.facilityType)
       );
     } catch (emailError) {
       console.error("Approval email failed:", emailError.message);
     }
 
+    // 🔔 2. In-App Notification to the Facility (Hospital/Bank)
+    const approvedLink = facility.facilityType === "hospital"
+      ? "/hospital/dashboard"
+      : "/bloodbank/dashboard";
+
+    await sendNotification(
+      facility._id,
+      "Facility",
+      "Account Verified! 🎊",
+      `Welcome to BloodConnect! Your ${facility.facilityType} account is now approved. You can start saving lives now.`,
+      approvedLink
+    );
+
     return res.status(200).json({
       success: true,
       message: "Facility approved successfully",
-      facility: {
-        id: facility._id,
-        name: facility.name,
-        email: facility.email,
-        facilityType: facility.facilityType,
-        status: facility.status,
-        approvedAt: facility.approvedAt,
-      },
+      facility,
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -92,7 +91,6 @@ exports.approveFacility = async (req, res) => {
   }
 };
 
-
 // ─────────────────────────────────
 // @route  PUT /api/admin/reject-facility/:id
 // @access Admin only
@@ -101,60 +99,43 @@ exports.rejectFacility = async (req, res) => {
   try {
     const { rejectionReason } = req.body;
 
-    // 1️⃣ Check rejection reason provided
     if (!rejectionReason) {
-      return res.status(400).json({
-        success: false,
-        message: "Please provide rejection reason",
-      });
+      return res.status(400).json({ success: false, message: "Rejection reason is required" });
     }
 
-    // 2️⃣ Find facility
     const facility = await Facility.findById(req.params.id);
     if (!facility) {
-      return res.status(404).json({
-        success: false,
-        message: "Facility not found",
-      });
+      return res.status(404).json({ success: false, message: "Facility not found" });
     }
 
-    // 3️⃣ Check already rejected
-    if (facility.status === "rejected") {
-      return res.status(400).json({
-        success: false,
-        message: "Facility is already rejected",
-      });
-    }
-
-    // 4️⃣ Reject facility
     facility.status = "rejected";
     facility.rejectionReason = rejectionReason;
     await facility.save();
 
-    // 5️⃣ Send rejection email to facility
+    // 📧 1. Email Notification
     try {
       await mailSender(
         facility.email,
-        "Your account registration has been rejected - Blood Donation System",
+        "Registration Update - BloodConnect",
         facilityRejectedTemplate(facility.name, facility.facilityType, rejectionReason)
       );
     } catch (emailError) {
       console.error("Rejection email failed:", emailError.message);
     }
 
+    // 🔔 2. In-App Notification (Even if rejected, they see why when they log in)
+    await sendNotification(
+      facility._id,
+      "Facility",
+      "Application Status ℹ️",
+      `Your registration was rejected. Reason: ${rejectionReason}. Please contact support for details.`,
+      "/login"
+    );
+
     return res.status(200).json({
       success: true,
       message: "Facility rejected successfully",
-      facility: {
-        id: facility._id,
-        name: facility.name,
-        email: facility.email,
-        facilityType: facility.facilityType,
-        status: facility.status,
-        rejectionReason: facility.rejectionReason,
-      },
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -170,7 +151,7 @@ exports.rejectFacility = async (req, res) => {
 // ─────────────────────────────────
 exports.getAllDonors = async (req, res) => {
   try {
-    const donors = await Donor.find().select("-password");
+    const donors = await Donor.find().select("-password").sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
@@ -178,7 +159,6 @@ exports.getAllDonors = async (req, res) => {
       count: donors.length,
       donors,
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -188,8 +168,6 @@ exports.getAllDonors = async (req, res) => {
   }
 };
 
-
-
 // ─────────────────────────────────
 // @route  GET /api/admin/facilities
 // @access Admin only
@@ -198,15 +176,14 @@ exports.getAllFacilities = async (req, res) => {
   try {
     const facilities = await Facility.find({
       status: "approved",
-    }).select("-password");
+    }).select("-password").sort({ createdAt: -1 });
 
     return res.status(200).json({
       success: true,
-      message: "Facilities fetched successfully",
+      message: "Approved facilities fetched successfully",
       count: facilities.length,
       facilities,
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,
@@ -215,8 +192,6 @@ exports.getAllFacilities = async (req, res) => {
     });
   }
 };
-
-
 
 // ─────────────────────────────────
 // @route  GET /api/admin/requests
@@ -230,11 +205,10 @@ exports.getAllRequests = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      message: "Requests fetched successfully",
+      message: "All blood requests fetched successfully",
       count: requests.length,
       requests,
     });
-
   } catch (error) {
     return res.status(500).json({
       success: false,

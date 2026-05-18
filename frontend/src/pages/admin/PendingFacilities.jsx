@@ -74,87 +74,89 @@ const PendingFacilities = () => {
     <div className="space-y-6">
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">Pending Facilities</h1>
-        <p className="text-gray-500 mt-1">
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gradient-to-r from-yellow-50 via-white to-red-50 dark:from-yellow-900/20 dark:via-gray-800 dark:to-red-900/20 px-5 py-5 sm:px-6 sm:py-6">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Pending Facilities</h1>
+        <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm">
           Review and approve or reject facility registrations
         </p>
       </div>
 
       {/* Count Badge */}
       <div className="flex items-center gap-2">
-        <span className="px-3 py-1 bg-red-100 text-red-600 text-sm font-semibold rounded-full">
+        <span className="px-3 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-sm font-semibold rounded-full border border-red-200 dark:border-red-800/50">
           {facilities.length} Pending
         </span>
       </div>
 
       {/* Empty State */}
       {facilities.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow p-12 text-center">
-          <FaCheck className="text-green-400 text-5xl mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700">All caught up!</h3>
-          <p className="text-gray-400 text-sm mt-1">No pending facilities to review</p>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-10 sm:p-12 text-center">
+          <div className="w-14 h-14 bg-green-100 dark:bg-green-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <FaCheck className="text-green-600 dark:text-green-300 text-2xl" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">All caught up!</h3>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">No pending facilities to review</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-5">
           {facilities.map((facility) => (
-            <div key={facility._id} className="bg-white rounded-2xl shadow p-6 hover:shadow-md transition-all">
+            <div key={facility._id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 sm:p-5 hover:shadow-md transition-all">
 
               {/* Facility Header */}
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3">
-                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
                     facility.facilityType === "hospital"
-                      ? "bg-orange-100"
-                      : "bg-blue-100"
+                      ? "bg-orange-100 dark:bg-orange-900/30"
+                      : "bg-blue-100 dark:bg-blue-900/30"
                   }`}>
                     {facility.facilityType === "hospital"
-                      ? <FaHospital className="text-orange-600 text-xl" />
-                      : <FaTint className="text-blue-600 text-xl" />
+                      ? <FaHospital className="text-orange-600 dark:text-orange-300 text-xl" />
+                      : <FaTint className="text-blue-600 dark:text-blue-300 text-xl" />
                     }
                   </div>
-                  <div>
-                    <h3 className="font-bold text-gray-800">{facility.name}</h3>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-800 dark:text-gray-200 break-words">{facility.name}</h3>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                       facility.facilityType === "hospital"
-                        ? "bg-orange-100 text-orange-600"
-                        : "bg-blue-100 text-blue-600"
+                        ? "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300"
+                        : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
                     }`}>
                       {facility.facilityType}
                     </span>
                   </div>
                 </div>
-                <span className="px-2 py-1 bg-yellow-100 text-yellow-600 text-xs font-semibold rounded-full">
+                <span className="self-start sm:self-auto px-2 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs font-semibold rounded-full border border-yellow-200 dark:border-yellow-800/50">
                   Pending
                 </span>
               </div>
 
               {/* Facility Details */}
               <div className="space-y-2 mb-5">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MdEmail className="text-gray-400" />
-                  {facility.email}
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <MdEmail className="text-gray-400 flex-shrink-0" />
+                  <span className="break-words">{facility.email}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MdPhone className="text-gray-400" />
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <MdPhone className="text-gray-400 flex-shrink-0" />
                   {facility.phone}
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MdLocationOn className="text-gray-400" />
-                  {facility.address?.city}, {facility.address?.state} - {facility.address?.pincode}
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                  <MdLocationOn className="text-gray-400 flex-shrink-0" />
+                  <span className="break-words">{facility.address?.city}, {facility.address?.state} - {facility.address?.pincode}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                   <span className="text-gray-400 text-xs">Reg No:</span>
                   <span className="font-medium">{facility.registrationNumber}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
+                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
                   <span className="text-gray-400 text-xs">Category:</span>
                   <span className="font-medium">{facility.facilityCategory}</span>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={() => handleApprove(facility._id)}
                   disabled={actionLoading === facility._id}
@@ -180,14 +182,14 @@ const PendingFacilities = () => {
 
       {/* Reject Modal */}
       {rejectModal.show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
             onClick={() => setRejectModal({ show: false, facilityId: null })}
           />
-          <div className="relative bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md mx-4 z-10">
-            <h3 className="text-lg font-bold text-gray-800 mb-2">Reject Facility</h3>
-            <p className="text-sm text-gray-500 mb-4">
+          <div className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-5 sm:p-6 w-full max-w-md z-10">
+            <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-2">Reject Facility</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
               Please provide a reason for rejection. This will be emailed to the facility.
             </p>
             <textarea
@@ -195,7 +197,7 @@ const PendingFacilities = () => {
               onChange={(e) => setRejectionReason(e.target.value)}
               placeholder="Enter rejection reason..."
               rows={4}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm resize-none mb-4"
+              className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm resize-none mb-4"
             />
             <div className="flex gap-3">
               <button
@@ -203,7 +205,7 @@ const PendingFacilities = () => {
                   setRejectModal({ show: false, facilityId: null });
                   setRejectionReason("");
                 }}
-                className="flex-1 px-4 py-3 border-2 border-gray-200 text-gray-600 font-semibold rounded-xl hover:bg-gray-50 transition-all text-sm"
+                className="flex-1 px-4 py-3 border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 font-semibold rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all text-sm"
               >
                 Cancel
               </button>

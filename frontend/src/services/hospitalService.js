@@ -35,3 +35,8 @@ export const completeRequest = async (id) => {
   const response = await apiConnector("PUT", HOSPITAL_APIS.COMPLETE_REQUEST(id));
   return response.data;
 };
+
+export const getNearbyBloodBanks = async () => {
+  const response = await apiConnector("GET", HOSPITAL_APIS.GET_NEARBY_BLOOD_BANKS);
+  return response.data;
+};

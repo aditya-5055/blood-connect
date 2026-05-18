@@ -36,22 +36,22 @@ const Dashboard = () => {
 
   const getStatusColor = (status) => {
     switch (status) {
-      case "active": return "bg-blue-100 text-blue-600";
-      case "confirmed": return "bg-yellow-100 text-yellow-600";
-      case "completed": return "bg-green-100 text-green-600";
-      case "expired": return "bg-gray-100 text-gray-500";
-      case "cancelled": return "bg-red-100 text-red-600";
-      default: return "bg-gray-100 text-gray-500";
+      case "active": return "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300";
+      case "confirmed": return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300";
+      case "completed": return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300";
+      case "expired": return "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400";
+      case "cancelled": return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
+      default: return "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400";
     }
   };
 
   const getUrgencyColor = (urgency) => {
     switch (urgency) {
-      case "Critical": return "bg-red-100 text-red-600";
-      case "High": return "bg-orange-100 text-orange-600";
-      case "Moderate": return "bg-yellow-100 text-yellow-600";
-      case "Normal": return "bg-green-100 text-green-600";
-      default: return "bg-gray-100 text-gray-500";
+      case "Critical": return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
+      case "High": return "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300";
+      case "Moderate": return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300";
+      case "Normal": return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300";
+      default: return "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400";
     }
   };
 
@@ -73,67 +73,73 @@ const Dashboard = () => {
     <div className="space-y-6">
 
       {/* Welcome Banner */}
-      <div className="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl p-6 text-white">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">
+      <div className="relative overflow-hidden rounded-3xl border border-orange-200 dark:border-orange-900/40 bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 dark:from-orange-900 dark:via-orange-950 dark:to-gray-950 p-5 sm:p-6 text-white shadow-lg">
+        <div className="absolute inset-0 opacity-20 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.45),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,255,255,0.25),transparent_28%)]"></div>
+        <div className="relative flex flex-col md:flex-row md:items-center md:justify-between gap-5">
+          <div className="space-y-2 max-w-2xl">
+            <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-[11px] font-semibold uppercase tracking-[0.14em] text-orange-50">
+              Hospital Dashboard
+            </span>
+            <h1 className="text-2xl sm:text-3xl font-bold leading-tight">
               Welcome, {profile?.name}! 🏥
             </h1>
-            <p className="text-orange-100 mt-1 text-sm">
-              Manage your blood requests and track their status
+            <p className="text-sm sm:text-base text-orange-50/90 max-w-xl leading-relaxed">
+              Manage your blood requests and track their status.
             </p>
           </div>
-          <div className="hidden md:block">
-            <Avatar name={profile?.name} size="xl" />
+          <div className="hidden md:flex items-center justify-center shrink-0">
+            <div className="rounded-3xl bg-white/10 backdrop-blur-sm border border-white/15 p-2">
+              <Avatar name={profile?.name} size="xl" />
+            </div>
           </div>
         </div>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl shadow p-4 text-center">
-          <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
-            <MdPending className="text-blue-600 text-xl" />
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center hover:shadow-md transition-all">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
+            <MdPending className="text-blue-700 dark:text-blue-300 text-lg sm:text-xl" />
           </div>
-          <p className="text-2xl font-bold text-gray-800">{active}</p>
-          <p className="text-xs text-gray-500 mt-1">Active Requests</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-200">{active}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Active</p>
         </div>
-        <div className="bg-white rounded-2xl shadow p-4 text-center">
-          <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-2">
-            <MdCheckCircle className="text-yellow-600 text-xl" />
+        <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center hover:shadow-md transition-all">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-yellow-100 dark:bg-yellow-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
+            <MdCheckCircle className="text-yellow-700 dark:text-yellow-300 text-lg sm:text-xl" />
           </div>
-          <p className="text-2xl font-bold text-gray-800">{confirmed}</p>
-          <p className="text-xs text-gray-500 mt-1">Confirmed</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-200">{confirmed}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Confirmed</p>
         </div>
-        <div className="bg-white rounded-2xl shadow p-4 text-center">
-          <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
-            <MdCheckCircle className="text-green-600 text-xl" />
+        <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-3 sm:p-4 text-center hover:shadow-md transition-all">
+          <div className="w-9 h-9 sm:w-10 sm:h-10 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
+            <MdCheckCircle className="text-green-700 dark:text-green-300 text-lg sm:text-xl" />
           </div>
-          <p className="text-2xl font-bold text-gray-800">{completed}</p>
-          <p className="text-xs text-gray-500 mt-1">Completed</p>
+          <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-200">{completed}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Completed</p>
         </div>
-        <div className="bg-white rounded-2xl shadow p-4 text-center">
-          <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-2">
-            <MdCancel className="text-red-600 text-xl" />
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 text-center">
+          <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mx-auto mb-2">
+            <MdCancel className="text-red-700 dark:text-red-300 text-xl" />
           </div>
-          <p className="text-2xl font-bold text-gray-800">{cancelled}</p>
-          <p className="text-xs text-gray-500 mt-1">Cancelled/Expired</p>
+          <p className="text-2xl font-bold text-gray-800 dark:text-gray-200">{cancelled}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Cancelled/Expired</p>
         </div>
       </div>
 
       {/* Location Warning */}
       {profile?.location?.coordinates?.[0] === 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-2xl p-5">
           <div className="flex items-start gap-3">
             <div className="text-red-500 text-xl">⚠️</div>
             <div>
-              <h3 className="font-bold text-red-700">Location Not Set!</h3>
-              <p className="text-sm text-red-600 mt-1">
+              <h3 className="font-bold text-red-700 dark:text-red-300">Location Not Set!</h3>
+              <p className="text-sm text-red-600 dark:text-red-300 mt-1">
                 Your location is not set. Blood requests will not work correctly.
               </p>
               <Link
                 to="/hospital/profile"
-                className="inline-block mt-2 text-xs font-semibold text-red-600 underline"
+                className="inline-block mt-2 text-xs font-semibold text-red-600 dark:text-red-300 underline"
               >
                 Update Location from Profile →
               </Link>
@@ -146,10 +152,10 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Link
           to="/hospital/post-request"
-          className="bg-red-600 hover:bg-red-700 rounded-2xl p-5 text-white transition-all"
+          className="bg-red-600 hover:bg-red-700 rounded-2xl p-5 text-white transition-all shadow-sm"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white bg-opacity-20 rounded-xl flex items-center justify-center">
+            <div className="w-10 h-10 bg-white dark:bg-gray-800 bg-opacity-20 rounded-xl flex items-center justify-center">
               <MdBloodtype className="text-white text-xl" />
             </div>
             <div>
@@ -160,15 +166,15 @@ const Dashboard = () => {
         </Link>
         <Link
           to="/hospital/my-requests"
-          className="bg-white border-2 border-orange-200 hover:border-orange-400 rounded-2xl p-5 transition-all"
+          className="bg-white dark:bg-gray-800 border-2 border-orange-200 dark:border-orange-800 hover:border-orange-400 dark:hover:border-orange-500 rounded-2xl p-5 transition-all shadow-sm"
         >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center">
-              <FaTint className="text-orange-600" />
+            <div className="w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-xl flex items-center justify-center">
+              <FaTint className="text-orange-700 dark:text-orange-300" />
             </div>
             <div>
-              <h3 className="font-bold text-gray-800">My Requests</h3>
-              <p className="text-gray-500 text-xs mt-0.5">Track all blood requests</p>
+              <h3 className="font-bold text-gray-800 dark:text-gray-200">My Requests</h3>
+              <p className="text-gray-500 dark:text-gray-400 text-xs mt-0.5">Track all blood requests</p>
             </div>
           </div>
         </Link>
@@ -177,16 +183,16 @@ const Dashboard = () => {
       {/* Recent Requests */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-bold text-gray-800">Recent Requests</h2>
-          <Link to="/hospital/my-requests" className="text-sm text-red-600 font-semibold hover:underline">
+          <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200">Recent Requests</h2>
+          <Link to="/hospital/my-requests" className="text-sm text-red-600 dark:text-red-300 font-semibold hover:underline">
             View All →
           </Link>
         </div>
 
         {requests.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow p-8 text-center">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
             <FaHospital className="text-gray-300 text-4xl mx-auto mb-3" />
-            <h3 className="font-semibold text-gray-700">No requests yet</h3>
+            <h3 className="font-semibold text-gray-700 dark:text-gray-300">No requests yet</h3>
             <p className="text-sm text-gray-400 mt-1">Post a blood request to get started</p>
             <Link
               to="/hospital/post-request"
@@ -198,14 +204,14 @@ const Dashboard = () => {
         ) : (
           <div className="space-y-3">
             {requests.slice(0, 5).map((request) => (
-              <div key={request.id} className="bg-white rounded-2xl shadow p-4 flex items-center gap-4">
-                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                  <FaTint className="text-red-600" />
+              <div key={request.id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 flex flex-col sm:flex-row sm:items-center gap-4">
+                <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center flex-shrink-0">
+                  <FaTint className="text-red-700 dark:text-red-300" />
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-bold text-red-600">{request.bloodGroup}</span>
-                    <span className="text-sm text-gray-600">{request.units} units</span>
+                    <span className="font-bold text-red-700 dark:text-red-300">{request.bloodGroup}</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">{request.units} units</span>
                     <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${getUrgencyColor(request.urgencyLevel)}`}>
                       {request.urgencyLevel}
                     </span>
@@ -215,7 +221,7 @@ const Dashboard = () => {
                     {new Date(request.createdAt).toDateString()}
                   </div>
                 </div>
-                <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${getStatusColor(request.status)}`}>
+                <span className={`self-start sm:self-center px-2 py-0.5 text-xs rounded-full font-medium ${getStatusColor(request.status)}`}>
                   {request.status}
                 </span>
               </div>

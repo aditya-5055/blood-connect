@@ -146,38 +146,42 @@ const Profile = () => {
     );
   }
 
+  const labelClass = "block text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1.5";
+  const inputClass = "w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-gray-800 dark:text-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm";
+  const viewClass = "text-sm font-medium text-gray-800 dark:text-gray-200 px-4 py-2.5 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800";
+
   return (
-    <div className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-5xl">
 
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">My Profile</h1>
-        <p className="text-gray-500 mt-1">Manage your personal information</p>
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gradient-to-r from-red-50 via-white to-rose-50 dark:from-red-900/20 dark:via-gray-800 dark:to-rose-900/20 px-5 py-4 sm:px-6 sm:py-5">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">My Profile</h1>
+        <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm">Manage your personal information, availability, and location preferences.</p>
       </div>
 
       {/* Profile Card */}
-      <div className="bg-white rounded-2xl shadow p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
 
         {/* Avatar + Name + Actions */}
-        <div className="flex items-start justify-between mb-6">
-          <div className="flex items-center gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4 mb-6">
+          <div className="flex items-center gap-4 min-w-0">
             <Avatar name={profile?.fullName} size="xl" />
-            <div>
-              <h2 className="text-xl font-bold text-gray-800">{profile?.fullName}</h2>
-              <p className="text-gray-500 text-sm">{profile?.email}</p>
+            <div className="min-w-0">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100 truncate">{profile?.fullName}</h2>
+              <p className="text-gray-500 dark:text-gray-400 text-sm truncate">{profile?.email}</p>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <span className="px-2 py-0.5 bg-red-100 text-red-600 text-xs rounded-full font-semibold">
+                <span className="px-2.5 py-1 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 text-xs rounded-full font-semibold border border-red-200 dark:border-red-800/50">
                   {profile?.bloodGroup}
                 </span>
-                <span className={`px-2 py-0.5 text-xs rounded-full font-semibold ${
+                <span className={`px-2.5 py-1 text-xs rounded-full font-semibold border ${
                   profile?.isAvailable
-                    ? "bg-green-100 text-green-600"
-                    : "bg-gray-100 text-gray-500"
+                    ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800/50"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600"
                 }`}>
                   {profile?.isAvailable ? "Available" : "Unavailable"}
                 </span>
                 {!profile?.eligibleToDonate && (
-                  <span className="px-2 py-0.5 bg-yellow-100 text-yellow-600 text-xs rounded-full font-semibold">
+                  <span className="px-2.5 py-1 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 text-xs rounded-full font-semibold border border-yellow-200 dark:border-yellow-800/50">
                     Not Eligible Yet
                   </span>
                 )}
@@ -186,12 +190,12 @@ const Profile = () => {
           </div>
 
           {/* Edit / Save Buttons */}
-          <div className="flex gap-2">
+          <div className="flex gap-2 self-start lg:self-auto">
             {editing ? (
               <>
                 <button
                   onClick={() => setEditing(false)}
-                  className="flex items-center gap-2 px-4 py-2 border-2 border-gray-200 text-gray-600 font-semibold text-sm rounded-xl hover:bg-gray-50 transition-all"
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-semibold text-sm rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all"
                 >
                   <MdClose />
                   Cancel
@@ -208,7 +212,7 @@ const Profile = () => {
             ) : (
               <button
                 onClick={() => setEditing(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm rounded-xl transition-all"
+                className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm rounded-xl shadow-sm transition-all"
               >
                 <MdEdit />
                 Edit Profile
@@ -218,27 +222,27 @@ const Profile = () => {
         </div>
 
         {/* Profile Fields */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
           {/* Full Name */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">Full Name</label>
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <label className={labelClass}>Full Name</label>
             {editing ? (
               <input
                 type="text"
                 name="fullName"
                 value={formData.fullName}
                 onChange={handleChange}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                className={inputClass}
               />
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">{profile?.fullName}</p>
+              <p className={viewClass}>{profile?.fullName}</p>
             )}
           </div>
 
           {/* Phone */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <label className={labelClass}>
               <MdPhone className="inline mr-1" />Phone
             </label>
             {editing ? (
@@ -247,26 +251,26 @@ const Profile = () => {
                 name="phone"
                 value={formData.phone}
                 onChange={handleChange}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                className={inputClass}
               />
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">{profile?.phone}</p>
+              <p className={viewClass}>{profile?.phone}</p>
             )}
           </div>
 
           {/* Blood Group — Read Only */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">
+          <div className="rounded-2xl border border-red-200 dark:border-red-800/50 bg-red-50/70 dark:bg-red-900/20 p-3">
+            <label className={labelClass}>
               <MdBloodtype className="inline mr-1" />Blood Group
             </label>
-            <p className="text-sm font-medium text-red-600 px-4 py-2.5 bg-red-50 rounded-xl">
+            <p className="text-sm font-medium text-red-700 dark:text-red-300 px-4 py-2.5 bg-white dark:bg-gray-900 rounded-xl border border-red-100 dark:border-red-800/40">
               {profile?.bloodGroup} (cannot be changed)
             </p>
           </div>
 
           {/* Weight */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <label className={labelClass}>
               <FaWeight className="inline mr-1" />Weight (kg)
             </label>
             {editing ? (
@@ -276,34 +280,34 @@ const Profile = () => {
                 value={formData.weight}
                 onChange={handleChange}
                 min={45}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                className={inputClass}
               />
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">
+              <p className={viewClass}>
                 {profile?.weight ? `${profile.weight} kg` : "Not set"}
               </p>
             )}
           </div>
 
           {/* Age — Read Only */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">Age</label>
-            <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <label className={labelClass}>Age</label>
+            <p className={viewClass}>
               {profile?.age} years (cannot be changed)
             </p>
           </div>
 
           {/* Gender — Read Only */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">Gender</label>
-            <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <label className={labelClass}>Gender</label>
+            <p className={viewClass}>
               {profile?.gender} (cannot be changed)
             </p>
           </div>
 
           {/* City */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <label className={labelClass}>
               <MdLocationOn className="inline mr-1" />City
             </label>
             {editing ? (
@@ -312,51 +316,51 @@ const Profile = () => {
                 name="city"
                 value={formData.address.city}
                 onChange={handleChange}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                className={inputClass}
               />
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">{profile?.address?.city}</p>
+              <p className={viewClass}>{profile?.address?.city}</p>
             )}
           </div>
 
           {/* State */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">State</label>
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <label className={labelClass}>State</label>
             {editing ? (
               <input
                 type="text"
                 name="state"
                 value={formData.address.state}
                 onChange={handleChange}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                className={inputClass}
               />
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">{profile?.address?.state}</p>
+              <p className={viewClass}>{profile?.address?.state}</p>
             )}
           </div>
 
           {/* Pincode */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">Pincode</label>
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <label className={labelClass}>Pincode</label>
             {editing ? (
               <input
                 type="text"
                 name="pincode"
                 value={formData.address.pincode}
                 onChange={handleChange}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm"
+                className={inputClass}
               />
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">{profile?.address?.pincode}</p>
+              <p className={viewClass}>{profile?.address?.pincode}</p>
             )}
           </div>
 
           {/* Last Donation */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">
+          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <label className={labelClass}>
               <FaCalendarAlt className="inline mr-1" />Last Donation
             </label>
-            <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">
+            <p className={viewClass}>
               {profile?.lastDonationDate
                 ? new Date(profile.lastDonationDate).toDateString()
                 : "Never donated"}
@@ -367,11 +371,11 @@ const Profile = () => {
       </div>
 
       {/* Availability Toggle Card */}
-      <div className="bg-white rounded-2xl shadow p-6">
-        <div className="flex items-center justify-between">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h3 className="font-bold text-gray-800">Donation Availability</h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <h3 className="font-bold text-gray-900 dark:text-gray-100">Donation Availability</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
               {profile?.isAvailable
                 ? "You are currently available to donate blood"
                 : "You are currently unavailable to donate blood"}
@@ -380,9 +384,9 @@ const Profile = () => {
           <button
             onClick={handleToggleAvailability}
             disabled={toggling}
-            className={`px-5 py-2.5 font-semibold text-sm rounded-xl transition-all ${
+            className={`w-full sm:w-auto px-5 py-2.5 font-semibold text-sm rounded-xl transition-all ${
               profile?.isAvailable
-                ? "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                ? "bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300"
                 : "bg-green-600 hover:bg-green-700 text-white"
             }`}
           >
@@ -396,19 +400,19 @@ const Profile = () => {
       </div>
 
       {/* ✅ Location Card */}
-      <div className="bg-white rounded-2xl shadow p-6">
-        <div className="flex items-center justify-between">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 sm:p-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h3 className="font-bold text-gray-800">My Location</h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <h3 className="font-bold text-gray-900 dark:text-gray-100">My Location</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
               Update your location to see nearby blood banks and camps
             </p>
             {profile?.location?.coordinates?.[0] !== 0 ? (
-              <p className="text-xs text-green-600 mt-1 font-medium">
+              <p className="text-xs text-green-600 dark:text-green-300 mt-1 font-medium">
                 ✅ Location is set
               </p>
             ) : (
-              <p className="text-xs text-red-500 mt-1 font-medium">
+              <p className="text-xs text-red-500 dark:text-red-300 mt-1 font-medium">
                 ⚠️ Location not set — nearby features may not work
               </p>
             )}
@@ -416,7 +420,7 @@ const Profile = () => {
           <button
             onClick={handleUpdateLocation}
             disabled={updatingLocation}
-            className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold text-sm rounded-xl transition-all"
+            className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white font-semibold text-sm rounded-xl transition-all"
           >
             <MdMyLocation />
             {updatingLocation ? "Updating..." : "Update Location"}

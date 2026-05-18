@@ -5,13 +5,177 @@ require("dotenv").config();
 const Admin = require("../models/adminModel");
 const mailSender = require("../utils/mailSender");
 const newFacilityTemplate = require("../mail/templates/newFacilityTemplate");
+const donorWelcomeTemplate = require("../mail/templates/donorWelcomeTemplate");
+const facilityUnderReviewTemplate = require("../mail/templates/facilityUnderReviewTemplate");
 const OTP = require("../models/otpModel");
 const otpGenerator = require("otp-generator");
+const { OAuth2Client } = require("google-auth-library");
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const crypto = require("crypto");
+const passwordResetTemplate = require("../mail/templates/passwordResetTemplate");
+
+// ✅ NEW: Import the notification utility
+const sendNotification = require("../utils/sendNotification");
+
 // Generate JWT Token
 const generateToken = (id, role) => {
   return jwt.sign({ id, role }, process.env.JWT_SECRET, {
     expiresIn: "24h",
   });
+};
+
+// ─────────────────────────────────
+// @route  POST /api/auth/donor/google
+// @access Public
+// ─────────────────────────────────
+exports.googleDonorLogin = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    // 1️⃣ Verify Google token
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const { email, name } = ticket.getPayload();
+
+    // 2️⃣ Check if donor exists
+    const donor = await Donor.findOne({ email });
+    if (!donor) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found. Please register first.",
+      });
+    }
+
+    // 3️⃣ Check isActive
+    if (!donor.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: "Account is deactivated",
+      });
+    }
+
+    // 4️⃣ Generate token
+    const token = generateToken(donor._id, "donor");
+
+    // 5️⃣ Update last login
+    donor.lastLogin = new Date();
+    await donor.save();
+
+    // 6️⃣ Set cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token,
+      donor: {
+        id: donor._id,
+        fullName: donor.fullName,
+        email: donor.email,
+        bloodGroup: donor.bloodGroup,
+      },
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Google login failed. Please try again.",
+      error: error.message,
+    });
+  }
+};
+
+// ─────────────────────────────────
+// @route  POST /api/auth/facility/google
+// @access Public
+// ─────────────────────────────────
+exports.googleFacilityLogin = async (req, res) => {
+  try {
+    const { credential } = req.body;
+
+    // 1️⃣ Verify Google token
+    const ticket = await client.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const { email } = ticket.getPayload();
+
+    // 2️⃣ Check if facility exists
+    const facility = await Facility.findOne({ email });
+    if (!facility) {
+      return res.status(404).json({
+        success: false,
+        message: "No account found. Please register first.",
+      });
+    }
+
+    // 3️⃣ Check approval status
+    if (facility.status === "pending") {
+      return res.status(401).json({
+        success: false,
+        message: "Your account is pending admin approval.",
+      });
+    }
+
+    if (facility.status === "rejected") {
+      return res.status(401).json({
+        success: false,
+        message: "Your account has been rejected. Please contact admin.",
+      });
+    }
+
+    // 4️⃣ Check isActive
+    if (!facility.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: "Account is deactivated",
+      });
+    }
+
+    // 5️⃣ Generate token
+    const token = generateToken(facility._id, facility.role);
+
+    // 6️⃣ Update last login
+    facility.lastLogin = new Date();
+    await facility.save();
+
+    // 7️⃣ Set cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token,
+      facility: {
+        id: facility._id,
+        name: facility.name,
+        email: facility.email,
+        facilityType: facility.facilityType,
+        role: facility.role,
+      },
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Google login failed. Please try again.",
+      error: error.message,
+    });
+  }
 };
 
 // ─────────────────────────────────
@@ -92,8 +256,6 @@ exports.adminLogin = async (req, res) => {
   }
 };
 
-
-
 // ─────────────────────────────────
 // @route  POST /api/auth/donor/register
 // @access Public
@@ -132,11 +294,27 @@ exports.donorRegister = async (req, res) => {
       });
     }
 
-    // 4️⃣ Create donor
+    // ✅ BULLETPROOF LOCATION FIX: Ensure location is strictly GeoJSON
+    let validLocation = { type: "Point", coordinates: [0, 0] };
+    if (location && location.coordinates && Array.isArray(location.coordinates)) {
+      validLocation = location;
+    }
+
+    // 4️⃣ Create donor (With robust fallbacks so MongoDB doesn't crash)
     const donor = await Donor.create({
-      fullName, email, password, phone,
-      bloodGroup, age, gender, weight, address,
-       location: location || { type: "Point", coordinates: [0, 0] },
+      fullName, 
+      email, 
+      password, 
+      phone,
+      bloodGroup, 
+      age: Number(age),               // Force to Number
+      gender, 
+      weight: Number(weight) || 50,   // Force to Number with safe fallback
+      address,
+      location: validLocation,        // Use the safe GeoJSON location
+      trustScore: 100, 
+      eligibleToDonate: true, 
+      isAvailable: true 
     });
 
     // 5️⃣ Delete OTP after successful registration
@@ -153,7 +331,7 @@ exports.donorRegister = async (req, res) => {
       maxAge: 24 * 60 * 60 * 1000,
     });
 
-    return res.status(201).json({
+    const responsePayload = {
       success: true,
       message: "Donor registered successfully",
       token,
@@ -163,19 +341,35 @@ exports.donorRegister = async (req, res) => {
         email: donor.email,
         bloodGroup: donor.bloodGroup,
       },
+    };
+
+    // Respond first for faster UX, then send welcome email in background.
+    res.status(201).json(responsePayload);
+
+    setImmediate(async () => {
+      try {
+        await mailSender(
+          donor.email,
+          "Welcome to Blood Donation System",
+          donorWelcomeTemplate(donor.fullName)
+        );
+      } catch (emailError) {
+        console.error("Donor welcome email failed:", emailError.message);
+      }
     });
 
+    return;
+
   } catch (error) {
+    // ✅ THIS SAVES LIVES: Prints the EXACT reason MongoDB crashed to your terminal
+    console.error("🔴 MONGODB REGISTRATION CRASH:", error); 
+    
     return res.status(500).json({
       success: false,
-      message: "Registration failed. Please try again.",
-      error: error.message,
+      message: error.message, // Send the real error to the frontend network tab
     });
   }
 };
-
-
-
 // ─────────────────────────────────
 // @route  POST /api/auth/donor/login
 // @access Public
@@ -254,8 +448,6 @@ exports.donorLogin = async (req, res) => {
   }
 };
 
-
-
 // @route  POST /api/auth/facility/register
 // @access Public
 // ─────────────────────────────────
@@ -301,33 +493,13 @@ exports.facilityRegister = async (req, res) => {
     const facility = await Facility.create({
       name, email, password, phone, emergencyContact,
       address, registrationNumber, facilityType, facilityCategory,
-        location: location || { type: "Point", coordinates: [0, 0] },
+      location: location || { type: "Point", coordinates: [0, 0] },
     });
 
     // 5️⃣ Delete OTP after successful registration
     await OTP.deleteMany({ email });
 
-    // 6️⃣ Notify admin about new facility registration
-    try {
-      const admins = await Admin.find({ isActive: true });
-      for (const admin of admins) {
-        await mailSender(
-          admin.email,
-          "New Facility Registration - Action Required",
-          newFacilityTemplate(
-            facility.name,
-            facility.facilityType,
-            facility.email,
-            facility.registrationNumber
-          )
-        );
-      }
-    } catch (emailError) {
-      // Email failure should NOT break registration
-      console.error("Admin notification email failed:", emailError.message);
-    }
-
-    return res.status(201).json({
+    const responsePayload = {
       success: true,
       message: "Registration submitted successfully. Please wait for admin approval.",
       facility: {
@@ -337,7 +509,52 @@ exports.facilityRegister = async (req, res) => {
         facilityType: facility.facilityType,
         status: facility.status,
       },
+    };
+
+    // Respond first for better UX, then run non-critical notifications in background.
+    res.status(201).json(responsePayload);
+
+    setImmediate(async () => {
+      try {
+        await mailSender(
+          facility.email,
+          "Registration Under Review - Blood Donation System",
+          facilityUnderReviewTemplate(facility.name, facility.facilityType)
+        );
+      } catch (emailError) {
+        console.error("Facility under-review email failed:", emailError.message);
+      }
+
+      try {
+        const admins = await Admin.find({ isActive: true });
+        await Promise.allSettled(
+          admins.map(async (admin) => {
+            await mailSender(
+              admin.email,
+              "New Facility Registration - Action Required",
+              newFacilityTemplate(
+                facility.name,
+                facility.facilityType,
+                facility.email,
+                facility.registrationNumber
+              )
+            );
+
+            await sendNotification(
+              admin._id,
+              "Admin",
+              "New Facility Alert 🏥",
+              `${facility.name} registered as a ${facility.facilityType} and is awaiting approval.`,
+              "/admin/pending-facilities"
+            );
+          })
+        );
+      } catch (notificationError) {
+        console.error("Admin notification failed:", notificationError.message);
+      }
     });
+
+    return;
 
   } catch (error) {
     return res.status(500).json({
@@ -442,9 +659,6 @@ exports.facilityLogin = async (req, res) => {
   }
 };
 
-
-
-
 // ─────────────────────────────────
 // @route  POST /api/auth/donor/send-otp
 // @access Public
@@ -544,6 +758,165 @@ exports.sendFacilityOTP = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to send OTP.",
+      error: error.message,
+    });
+  }
+};
+
+// ─────────────────────────────────────────────────────────
+// ✅ FORGOT PASSWORD
+// ─────────────────────────────────────────────────────────
+
+// ─────────────────────────────────
+// @route  POST /api/auth/reset-password-token
+// @desc   Step 1 — User enters email, we send reset link to their email
+// @body   { email, userType }   ← userType is "donor" or "facility"
+// @access Public
+// ─────────────────────────────────
+exports.resetPasswordToken = async (req, res) => {
+  try {
+    const { email, userType } = req.body;
+
+    // 1️⃣ Validate input
+    if (!email || !userType) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and userType are required",
+      });
+    }
+
+    // 2️⃣ Validate userType
+    if (!["donor", "facility"].includes(userType)) {
+      return res.status(400).json({
+        success: false,
+        message: "userType must be donor or facility",
+      });
+    }
+
+    // 3️⃣ Find the user based on userType
+    let user;
+    if (userType === "donor") {
+      user = await Donor.findOne({ email });
+    } else {
+      user = await Facility.findOne({ email });
+    }
+
+    // 4️⃣ Check user exists
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: `This email: ${email} is not registered with us. Please enter a valid email.`,
+      });
+    }
+
+    // 5️⃣ Generate a random reset token
+    const token = crypto.randomBytes(20).toString("hex");
+
+    // 6️⃣ Save token + expiry on the user document
+    user.token = token;
+    user.resetPasswordExpires = Date.now() + 3600000; // 1 hour in milliseconds
+    await user.save();
+
+    // 7️⃣ Build the reset URL
+    const resetUrl = `http://localhost:5173/update-password/${token}?userType=${userType}`;
+
+    // 8️⃣ Send the reset link email
+    await mailSender(
+      email,
+      "Password Reset - Blood Donation System",
+      passwordResetTemplate(resetUrl)
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Email sent successfully. Please check your email to continue.",
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while sending the reset email. Please try again.",
+      error: error.message,
+    });
+  }
+};
+
+// ─────────────────────────────────
+// @route  POST /api/auth/reset-password
+// @desc   Step 2 — User submits new password using the token from the link
+// @body   { password, confirmPassword, token, userType }
+// @access Public
+// ─────────────────────────────────
+exports.resetPassword = async (req, res) => {
+  try {
+    const { password, confirmPassword, token, userType } = req.body;
+
+    // 1️⃣ Validate input
+    if (!password || !confirmPassword || !token || !userType) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    // 2️⃣ Check passwords match
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Password and confirm password do not match",
+      });
+    }
+
+    // 3️⃣ Validate password length
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters",
+      });
+    }
+
+    // 4️⃣ Find user by token
+    let user;
+    if (userType === "donor") {
+      user = await Donor.findOne({ token: token }).select("+password");
+    } else {
+      user = await Facility.findOne({ token: token }).select("+password");
+    }
+
+    // 5️⃣ Check token is valid (user exists)
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: "Token is invalid. Please request a new password reset link.",
+      });
+    }
+
+    // 6️⃣ Check token has not expired
+    if (!(user.resetPasswordExpires > Date.now())) {
+      return res.status(403).json({
+        success: false,
+        message: "Token has expired. Please request a new password reset link.",
+      });
+    }
+
+    // 7️⃣ Update the password
+    user.password = password;
+
+    // 8️⃣ Clear the token fields so the link cannot be reused
+    user.token = undefined;
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Password reset successful. Please login with your new password.",
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Something went wrong while resetting the password. Please try again.",
       error: error.message,
     });
   }

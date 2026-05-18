@@ -3,6 +3,14 @@ import { Link } from "react-router-dom";
 import { FaTint, FaHeart, FaCheckCircle, FaTimesCircle, FaQuestionCircle, FaChevronDown, FaChevronUp } from "react-icons/fa";
 import { MdBloodtype, MdLocalHospital, MdInfo, MdWarning, MdCheckCircle } from "react-icons/md";
 
+const toneClasses = {
+  red: { bg: "bg-red-100", text: "text-red-600" },
+  orange: { bg: "bg-orange-100", text: "text-orange-500" },
+  blue: { bg: "bg-blue-100", text: "text-blue-600" },
+  green: { bg: "bg-green-100", text: "text-green-600" },
+  purple: { bg: "bg-purple-100", text: "text-purple-600" },
+};
+
 const faqs = [
   {
     q: "Who can donate blood?",
@@ -78,19 +86,28 @@ const eligibility = {
   ],
 };
 
-const FAQ = ({ q, a }) => {
-  const [open, setOpen] = useState(false);
+const FAQ = ({ q, a, open, onToggle }) => {
   return (
-    <div className="border border-gray-200 rounded-xl overflow-hidden">
+    <div className="border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden bg-white dark:bg-gray-800 shadow-sm hover:shadow-md transition-all duration-300">
       <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+        onClick={onToggle}
+        className={`w-full flex items-center justify-between px-5 sm:px-6 py-4 sm:py-5 text-left transition-colors ${
+          open
+            ? "bg-red-50/70 dark:bg-red-900/20"
+            : "hover:bg-gray-50 dark:hover:bg-gray-900"
+        }`}
       >
-        <span className="font-semibold text-gray-800 text-sm pr-4">{q}</span>
-        {open ? <FaChevronUp className="text-red-500 flex-shrink-0" /> : <FaChevronDown className="text-gray-400 flex-shrink-0" />}
+        <span className="font-semibold text-gray-800 dark:text-gray-200 text-sm sm:text-base pr-4 leading-relaxed">{q}</span>
+        <span className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all ${
+          open
+            ? "border-red-200 dark:border-red-700 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-300"
+            : "border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-400"
+        }`}>
+          {open ? <FaChevronUp className="flex-shrink-0" /> : <FaChevronDown className="flex-shrink-0" />}
+        </span>
       </button>
       {open && (
-        <div className="px-6 pb-5 text-gray-500 text-sm leading-relaxed border-t border-gray-100 pt-4 bg-red-50/30">
+        <div className="px-5 sm:px-6 pb-5 pt-4 text-gray-600 dark:text-gray-300 text-sm leading-relaxed border-t border-red-100 dark:border-red-900/40 bg-gradient-to-b from-red-50/40 to-white dark:from-red-900/10 dark:to-gray-800">
           {a}
         </div>
       )}
@@ -100,28 +117,29 @@ const FAQ = ({ q, a }) => {
 
 const Learn = () => {
   const [activeType, setActiveType] = useState(null);
+  const [openFaqIndex, setOpenFaqIndex] = useState(0);
 
   return (
-    <div className="font-sans">
+    <div className="public-page">
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-red-600 to-red-800 text-white py-24 px-4">
+      <section className="public-hero py-24">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <MdInfo className="text-white" />
+          <div className="public-hero-badge">
+            <MdInfo className="text-red-600 dark:text-red-300" />
             Education & Awareness
           </div>
-          <h1 className="text-4xl md:text-6xl font-bold mb-6 leading-tight">
+          <h1 className="public-hero-title">
             Learn About <br />
             <span className="text-yellow-300">Blood Donation</span>
           </h1>
-          <p className="text-red-100 text-lg md:text-xl max-w-2xl mx-auto mb-10">
+          <p className="public-hero-subtitle">
             Everything you need to know about donating blood — eligibility,
             blood types, the donation process, and answers to your most common questions.
           </p>
           <Link
             to="/donor/register"
-            className="inline-block px-8 py-4 bg-white text-red-600 font-bold rounded-xl hover:bg-red-50 transition-all shadow-lg text-sm"
+              className="inline-block px-8 py-4 bg-white text-red-600 font-bold rounded-xl hover:bg-gray-100 transition-all shadow-lg text-sm"
           >
             🩸 Ready to Donate? Register Now
           </Link>
@@ -129,11 +147,11 @@ const Learn = () => {
       </section>
 
       {/* Why Donate */}
-      <section className="py-20 px-4">
+      <section className="public-section">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">Why Donate Blood?</h2>
-            <p className="text-gray-500 max-w-xl mx-auto">
+            <h2 className="public-section-title">Why Donate Blood?</h2>
+            <p className="public-section-subtitle max-w-xl mx-auto">
               One donation can save up to 3 lives. Here's why your blood matters.
             </p>
           </div>
@@ -143,12 +161,12 @@ const Learn = () => {
               { icon: MdBloodtype, color: "blue", title: "Blood Has No Substitute", desc: "No artificial alternative exists for human blood. Every patient who needs a transfusion depends on a real donor like you." },
               { icon: MdLocalHospital, color: "orange", title: "Constant Demand", desc: "India needs over 14.6 million units of blood annually. Someone in India needs blood every 2 seconds." },
             ].map((item) => (
-              <div key={item.title} className="text-center p-6 bg-white rounded-2xl shadow border border-gray-100">
-                <div className={`inline-flex items-center justify-center w-16 h-16 bg-${item.color}-100 rounded-full mb-4`}>
-                  <item.icon className={`text-${item.color}-600 text-2xl`} />
+              <div key={item.title} className="text-center p-6 bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 hover:shadow-lg hover:scale-105 transition-all duration-300">
+                <div className={`inline-flex items-center justify-center w-16 h-16 ${toneClasses[item.color].bg} rounded-full mb-4`}>
+                  <item.icon className={`${toneClasses[item.color].text} text-2xl`} />
                 </div>
-                <h3 className="text-lg font-bold text-gray-800 mb-2">{item.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{item.desc}</p>
+                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-2">{item.title}</h3>
+                <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -156,35 +174,35 @@ const Learn = () => {
       </section>
 
       {/* Eligibility */}
-      <section className="py-20 bg-gray-50 px-4">
+      <section className="public-section-muted">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">Eligibility Criteria</h2>
-            <p className="text-gray-500">Check if you're eligible to donate today</p>
+            <h2 className="public-section-title">Eligibility Criteria</h2>
+            <p className="public-section-subtitle">Check if you're eligible to donate today</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-white rounded-2xl shadow border border-green-100 p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow border border-green-100 dark:border-gray-700 p-6 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
               <div className="flex items-center gap-3 mb-5">
                 <MdCheckCircle className="text-green-500 text-2xl" />
-                <h3 className="text-lg font-bold text-gray-800">You CAN Donate If...</h3>
+                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">You CAN Donate If...</h3>
               </div>
               <ul className="space-y-3">
                 {eligibility.canDonate.map((item) => (
-                  <li key={item} className="flex items-center gap-3 text-sm text-gray-600">
+                  <li key={item} className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
                     <FaCheckCircle className="text-green-500 flex-shrink-0" />
                     {item}
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="bg-white rounded-2xl shadow border border-red-100 p-6">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow border border-red-100 dark:border-gray-700 p-6 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
               <div className="flex items-center gap-3 mb-5">
                 <MdWarning className="text-red-500 text-2xl" />
-                <h3 className="text-lg font-bold text-gray-800">You CANNOT Donate If...</h3>
+                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200">You CANNOT Donate If...</h3>
               </div>
               <ul className="space-y-3">
                 {eligibility.cannotDonate.map((item) => (
-                  <li key={item} className="flex items-center gap-3 text-sm text-gray-600">
+                  <li key={item} className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
                     <FaTimesCircle className="text-red-400 flex-shrink-0" />
                     {item}
                   </li>
@@ -192,28 +210,28 @@ const Learn = () => {
               </ul>
             </div>
           </div>
-          <p className="text-center text-gray-400 text-xs mt-6">
+          <p className="text-center text-gray-500 dark:text-gray-400 text-xs mt-6">
             * Always consult the medical staff at the donation center for final eligibility confirmation.
           </p>
         </div>
       </section>
 
       {/* Donation Process */}
-      <section className="py-20 px-4">
+      <section className="public-section">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">The Donation Process</h2>
-            <p className="text-gray-500">Simple, safe, and over before you know it</p>
+            <h2 className="public-section-title">The Donation Process</h2>
+            <p className="public-section-subtitle">Simple, safe, and over before you know it</p>
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 sm:gap-6">
             {steps.map((item) => (
-              <div key={item.step} className="bg-white rounded-2xl shadow p-5 text-center border border-gray-100">
-                <div className={`inline-flex items-center justify-center w-12 h-12 bg-${item.color}-100 rounded-full mb-3`}>
-                  <FaTint className={`text-${item.color}-600 text-lg`} />
+              <div key={item.step} className="bg-white dark:bg-gray-800 rounded-2xl shadow p-5 text-center border border-gray-100 dark:border-gray-700 hover:shadow-lg hover:scale-105 transition-all duration-300">
+                <div className={`inline-flex items-center justify-center w-12 h-12 ${toneClasses[item.color].bg} rounded-full mb-3`}>
+                  <FaTint className={`${toneClasses[item.color].text} text-lg`} />
                 </div>
-                <p className={`text-2xl font-bold text-${item.color}-600 mb-1`}>{item.step}</p>
-                <h3 className="font-bold text-gray-800 text-sm mb-1">{item.title}</h3>
-                <p className="text-gray-500 text-xs leading-relaxed">{item.desc}</p>
+                <p className={`text-2xl font-bold ${toneClasses[item.color].text} mb-1`}>{item.step}</p>
+                <h3 className="font-bold text-gray-800 dark:text-gray-200 text-sm mb-1">{item.title}</h3>
+                <p className="text-gray-500 dark:text-gray-400 text-xs leading-relaxed">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -221,59 +239,68 @@ const Learn = () => {
       </section>
 
       {/* Blood Type Compatibility */}
-      <section className="py-20 bg-gray-50 px-4">
+      <section className="public-section-muted">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">Blood Type Compatibility</h2>
-            <p className="text-gray-500">Click on any blood type to see compatibility details</p>
+            <h2 className="public-section-title">Blood Type Compatibility</h2>
+            <p className="public-section-subtitle">Click on any blood type to see compatibility details</p>
           </div>
-          <div className="grid grid-cols-4 md:grid-cols-8 gap-3 mb-8">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow border border-gray-100 dark:border-gray-700 p-4 sm:p-5 mb-6">
+            <div className="grid grid-cols-4 md:grid-cols-8 gap-2 sm:gap-3">
             {bloodTypes.map((bt) => (
               <button
                 key={bt.type}
                 onClick={() => setActiveType(activeType?.type === bt.type ? null : bt)}
-                className={`rounded-xl py-4 font-bold text-lg transition-all shadow-sm border-2 ${
+                  className={`rounded-xl py-3 sm:py-4 font-bold text-base sm:text-lg transition-all border-2 ${
                   activeType?.type === bt.type
-                    ? "bg-red-600 text-white border-red-600 scale-105 shadow-md"
-                    : "bg-white text-red-600 border-red-100 hover:border-red-400"
+                      ? "bg-red-600 text-white border-red-600 shadow-md"
+                      : "bg-red-50/70 dark:bg-gray-900 text-red-600 dark:text-red-300 border-red-100 dark:border-gray-700 hover:border-red-400 dark:hover:border-red-500 hover:bg-red-50"
                 }`}
               >
                 {bt.type}
               </button>
             ))}
+            </div>
           </div>
 
           {activeType && (
-            <div className="bg-white rounded-2xl shadow-lg border border-red-100 p-8 transition-all">
-              <div className="flex flex-wrap items-center gap-4 mb-6">
-                <div className="bg-red-600 text-white font-bold text-3xl px-6 py-3 rounded-xl">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-red-100 dark:border-gray-700 p-6 sm:p-8 transition-all">
+              <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+                <div className="flex items-center gap-4">
+                  <div className="bg-gradient-to-br from-red-500 to-red-700 text-white font-bold text-3xl px-6 py-3 rounded-xl shadow">
                   {activeType.type}
+                  </div>
+                  <div>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Population with this type</p>
+                    <p className="text-2xl font-bold text-gray-800 dark:text-gray-200">{activeType.frequency}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-gray-400">Population with this type</p>
-                  <p className="text-2xl font-bold text-gray-800">{activeType.frequency}</p>
+                <div className="px-3 py-1.5 rounded-full bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-xs font-semibold border border-red-100 dark:border-red-800/50">
+                  Compatible Match Guide
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-green-50 rounded-xl p-5">
-                  <p className="text-green-700 font-bold mb-3 flex items-center gap-2">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-xl p-5 border border-green-200 dark:border-green-800/50">
+                  <p className="text-green-700 dark:text-green-400 font-bold mb-3 flex items-center gap-2">
                     <FaCheckCircle /> Can Donate To
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2.5">
                     {activeType.canDonateTo.map((t) => (
-                      <span key={t} className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-semibold">
+                      <span key={t} className="bg-white dark:bg-gray-900 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700 px-3 py-1 rounded-full text-sm font-semibold">
                         {t}
                       </span>
                     ))}
                   </div>
                 </div>
-                <div className="bg-blue-50 rounded-xl p-5">
-                  <p className="text-blue-700 font-bold mb-3 flex items-center gap-2">
+
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-5 border border-blue-200 dark:border-blue-800/50">
+                  <p className="text-blue-700 dark:text-blue-400 font-bold mb-3 flex items-center gap-2">
                     <MdBloodtype /> Can Receive From
                   </p>
-                  <div className="flex flex-wrap gap-2">
+                  <div className="flex flex-wrap gap-2.5">
                     {activeType.canReceiveFrom.map((t) => (
-                      <span key={t} className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
+                      <span key={t} className="bg-white dark:bg-gray-900 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-700 px-3 py-1 rounded-full text-sm font-semibold">
                         {t}
                       </span>
                     ))}
@@ -284,24 +311,24 @@ const Learn = () => {
           )}
 
           {!activeType && (
-            <div className="text-center text-gray-400 py-8 bg-white rounded-2xl border border-dashed border-gray-200">
+            <div className="text-center text-gray-400 py-10 bg-white dark:bg-gray-800 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700">
               <FaQuestionCircle className="text-4xl mx-auto mb-2 text-gray-300" />
-              <p className="text-sm">Select a blood type above to see its compatibility details</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Select a blood type above to see its compatibility details</p>
             </div>
           )}
         </div>
       </section>
 
       {/* Tips */}
-      <section className="py-20 px-4">
+      <section className="public-section">
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">Before & After Donation Tips</h2>
-            <p className="text-gray-500">Follow these tips for a comfortable donation experience</p>
+            <h2 className="public-section-title">Before & After Donation Tips</h2>
+            <p className="public-section-subtitle">Follow these tips for a comfortable donation experience</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-orange-50 border border-orange-100 rounded-2xl p-7">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">🌅 Before Donation</h3>
+            <div className="bg-orange-50 dark:bg-gray-800 border border-orange-100 dark:border-gray-700 rounded-2xl p-7 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4">🌅 Before Donation</h3>
               <ul className="space-y-3">
                 {[
                   "Drink at least 2–3 extra glasses of water",
@@ -311,15 +338,15 @@ const Learn = () => {
                   "Wear comfortable, loose clothing",
                   "Bring a valid photo ID",
                 ].map((tip) => (
-                  <li key={tip} className="flex items-start gap-3 text-sm text-gray-600">
+                  <li key={tip} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-400">
                     <FaCheckCircle className="text-orange-400 mt-0.5 flex-shrink-0" />
                     {tip}
                   </li>
                 ))}
               </ul>
             </div>
-            <div className="bg-blue-50 border border-blue-100 rounded-2xl p-7">
-              <h3 className="text-lg font-bold text-gray-800 mb-4">🌙 After Donation</h3>
+            <div className="bg-blue-50 dark:bg-gray-800 border border-blue-100 dark:border-gray-700 rounded-2xl p-7 hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+              <h3 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-4">🌙 After Donation</h3>
               <ul className="space-y-3">
                 {[
                   "Rest for 10–15 minutes at the center",
@@ -329,7 +356,7 @@ const Learn = () => {
                   "Keep the bandage on for at least 4 hours",
                   "Avoid smoking for 2 hours after donating",
                 ].map((tip) => (
-                  <li key={tip} className="flex items-start gap-3 text-sm text-gray-600">
+                  <li key={tip} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-400">
                     <FaCheckCircle className="text-blue-400 mt-0.5 flex-shrink-0" />
                     {tip}
                   </li>
@@ -341,39 +368,45 @@ const Learn = () => {
       </section>
 
       {/* FAQ */}
-      <section className="py-20 bg-gray-50 px-4">
+      <section className="public-section-muted">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">Frequently Asked Questions</h2>
-            <p className="text-gray-500">Got questions? We've got answers.</p>
+            <h2 className="public-section-title">Frequently Asked Questions</h2>
+            <p className="public-section-subtitle">Got questions? We've got answers.</p>
           </div>
           <div className="space-y-3">
-            {faqs.map((faq) => (
-              <FAQ key={faq.q} q={faq.q} a={faq.a} />
+            {faqs.map((faq, index) => (
+              <FAQ
+                key={faq.q}
+                q={faq.q}
+                a={faq.a}
+                open={openFaqIndex === index}
+                onToggle={() => setOpenFaqIndex(openFaqIndex === index ? -1 : index)}
+              />
             ))}
           </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section className="py-20 bg-red-600 text-white px-4">
+      <section className="public-cta py-20">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4">
+          <h2 className="public-cta-title text-3xl md:text-4xl mb-4">
             Ready to Save a Life Today?
           </h2>
-          <p className="text-red-100 mb-8 text-lg">
+          <p className="public-cta-subtitle mb-8 text-lg">
             Join thousands of donors and facilities already making a difference.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              to="/donor/register"
-              className="inline-block px-10 py-4 bg-white text-red-600 font-bold rounded-xl hover:bg-red-50 transition-all shadow-lg"
+              to="/register"
+              className="inline-block px-10 py-4 bg-white text-red-600 font-bold rounded-xl hover:bg-gray-100 transition-all shadow-lg"
             >
               🩸 Register as Donor — It's Free!
             </Link>
             <Link
-              to="/facility/register"
-              className="inline-block px-10 py-4 bg-red-500 text-white font-bold rounded-xl hover:bg-red-400 border-2 border-white/30 transition-all"
+              to="/register"
+              className="inline-block px-10 py-4 bg-transparent border border-white text-white font-bold rounded-xl hover:bg-white/10 transition-all"
             >
               🏥 Register Your Facility
             </Link>

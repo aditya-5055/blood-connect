@@ -96,11 +96,11 @@ const BloodRequests = () => {
 
   const getUrgencyColor = (urgency) => {
     switch (urgency) {
-      case "Critical": return "bg-red-100 text-red-600";
-      case "High": return "bg-orange-100 text-orange-600";
-      case "Moderate": return "bg-yellow-100 text-yellow-600";
-      case "Normal": return "bg-green-100 text-green-600";
-      default: return "bg-gray-100 text-gray-500";
+      case "Critical": return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300";
+      case "High": return "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300";
+      case "Moderate": return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300";
+      case "Normal": return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300";
+      default: return "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400";
     }
   };
 
@@ -128,30 +128,30 @@ const BloodRequests = () => {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Hospital Blood Requests</h1>
-        <p className="text-gray-500 mt-1">Incoming blood requests from nearby hospitals</p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Hospital Blood Requests</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">Incoming blood requests from nearby hospitals</p>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-blue-600">{incomingRequests.length}</p>
-          <p className="text-xs font-medium text-blue-600 mt-0.5">📥 Incoming</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{incomingRequests.length}</p>
+          <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mt-0.5">📥 Incoming</p>
         </div>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-yellow-600">{acceptedRequests.length}</p>
-          <p className="text-xs font-medium text-yellow-600 mt-0.5">✅ Accepted — Pending Delivery</p>
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{acceptedRequests.length}</p>
+          <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-300 mt-0.5">✅ Accepted — Pending Delivery</p>
         </div>
       </div>
 
       {/* Filter */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2 bg-gray-100 dark:bg-gray-800/80 p-1.5 rounded-2xl w-fit">
         <button
           onClick={() => setFilter("incoming")}
           className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
             filter === "incoming"
-              ? "bg-red-600 text-white shadow-sm"
-              : "bg-white border border-gray-200 text-gray-600 hover:border-red-300 hover:text-red-600"
+              ? "bg-white dark:bg-gray-900 text-red-600 dark:text-red-300 shadow-sm"
+              : "text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-300"
           }`}
         >
           Incoming ({incomingRequests.length})
@@ -160,8 +160,8 @@ const BloodRequests = () => {
           onClick={() => setFilter("accepted")}
           className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all ${
             filter === "accepted"
-              ? "bg-red-600 text-white shadow-sm"
-              : "bg-white border border-gray-200 text-gray-600 hover:border-red-300 hover:text-red-600"
+              ? "bg-white dark:bg-gray-900 text-red-600 dark:text-red-300 shadow-sm"
+              : "text-gray-600 dark:text-gray-300 hover:text-red-600 dark:hover:text-red-300"
           }`}
         >
           Accepted ({acceptedRequests.length})
@@ -170,16 +170,16 @@ const BloodRequests = () => {
 
       {/* Info Box */}
       {filter === "incoming" && (
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-          <p className="text-sm text-blue-700">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl p-4">
+          <p className="text-sm text-blue-700 dark:text-blue-200">
             📋 These are blood requests from hospitals within 50km.
             Accept if you have enough stock, decline otherwise.
           </p>
         </div>
       )}
       {filter === "accepted" && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-          <p className="text-sm text-yellow-700">
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-xl p-4">
+          <p className="text-sm text-yellow-700 dark:text-yellow-200">
             🚚 Click <strong>Mark as Delivered</strong> once blood is dispatched to hospital.
           </p>
         </div>
@@ -187,9 +187,9 @@ const BloodRequests = () => {
 
       {/* List */}
       {displayRequests.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow p-12 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow p-12 text-center">
           <FaTint className="text-gray-300 text-5xl mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700">
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">
             No {filter} requests
           </h3>
           <p className="text-gray-400 text-sm mt-1">
@@ -203,7 +203,7 @@ const BloodRequests = () => {
           {displayRequests.map((request) => (
             <div
               key={request._id}
-              className={`bg-white rounded-2xl shadow p-5 hover:shadow-md transition-all border-l-4 ${
+              className={`bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 md:p-5 hover:shadow-md transition-all border-l-4 ${
                 request.urgencyLevel === "Critical" ? "border-red-500" :
                 request.urgencyLevel === "High" ? "border-orange-400" :
                 request.urgencyLevel === "Moderate" ? "border-yellow-400" :
@@ -211,7 +211,7 @@ const BloodRequests = () => {
               }`}
             >
               {/* Header */}
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
                     <FaTint className="text-red-600 text-lg" />
@@ -219,7 +219,7 @@ const BloodRequests = () => {
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-2xl font-bold text-red-600">{request.bloodGroup}</span>
-                      <span className="text-gray-600 font-medium">{request.units} units</span>
+                      <span className="text-gray-600 dark:text-gray-400 font-medium">{request.units} units</span>
                       <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${getUrgencyColor(request.urgencyLevel)}`}>
                         {request.urgencyLevel}
                       </span>
@@ -231,7 +231,7 @@ const BloodRequests = () => {
                 </div>
 
                 {request.status === "active" && (
-                  <div className="flex items-center gap-1 text-xs text-orange-600 font-medium">
+                  <div className="flex items-center gap-1 text-xs text-orange-700 dark:text-orange-300 font-medium">
                     <MdAccessTime />
                     {getTimeRemaining(request.deadline)}
                   </div>
@@ -239,17 +239,17 @@ const BloodRequests = () => {
               </div>
 
               {/* Hospital Details */}
-              <div className="mb-4 p-3 bg-gray-50 rounded-xl space-y-1">
+              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-xl space-y-1">
                 <p className="text-xs text-gray-400 mb-1">Hospital:</p>
-                <div className="flex items-center gap-2 text-sm text-gray-700">
+                <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
                   <FaHospital className="text-orange-500 flex-shrink-0" />
                   <span className="font-semibold">{request.hospitalId?.name}</span>
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                   <FaPhone className="text-xs text-gray-400 flex-shrink-0" />
                   {request.hospitalId?.phone}
                 </div>
-                <div className="flex items-center gap-2 text-sm text-gray-500">
+                <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                   <MdLocationOn className="text-gray-400 flex-shrink-0" />
                   {request.hospitalId?.address?.city}, {request.hospitalId?.address?.state}
                 </div>
@@ -259,8 +259,8 @@ const BloodRequests = () => {
               {filter === "incoming" && (
                 <div className={`mb-4 p-3 rounded-xl text-sm font-medium ${
                   request.canFulfill
-                    ? "bg-green-50 text-green-700 border border-green-200"
-                    : "bg-red-50 text-red-700 border border-red-200"
+                    ? "bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700"
+                    : "bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700"
                 }`}>
                   {request.canFulfill
                     ? `✅ You have enough stock (${request.availableStock} units available)`
@@ -270,20 +270,20 @@ const BloodRequests = () => {
 
               {/* Notes */}
               {request.notes && (
-                <div className="mb-4 p-3 bg-blue-50 rounded-xl">
-                  <p className="text-xs text-blue-500">Hospital Note:</p>
-                  <p className="text-sm text-blue-700 mt-0.5">{request.notes}</p>
+                <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-xl">
+                  <p className="text-xs text-blue-600 dark:text-blue-300">Hospital Note:</p>
+                  <p className="text-sm text-blue-700 dark:text-blue-200 mt-0.5">{request.notes}</p>
                 </div>
               )}
 
               {/* Action Buttons */}
-              <div className="flex gap-3 pt-3 border-t border-gray-100">
+              <div className="flex flex-col sm:flex-row gap-3 pt-3 border-t border-gray-100 dark:border-gray-800">
                 {filter === "incoming" && (
                   <>
                     <button
                       onClick={() => handleDeclineClick(request)}
                       disabled={!!actionLoading}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-gray-200 text-gray-600 hover:border-red-300 hover:text-red-600 text-sm font-semibold rounded-xl transition-all"
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-red-300 hover:text-red-600 text-sm font-semibold rounded-xl transition-all"
                     >
                       <MdClose />
                       Decline
@@ -291,7 +291,7 @@ const BloodRequests = () => {
                     <button
                       onClick={() => handleAccept(request._id)}
                       disabled={!request.canFulfill || actionLoading === request._id + "_accept"}
-                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 text-white text-sm font-semibold rounded-xl transition-all"
+                      className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white text-sm font-semibold rounded-xl transition-all"
                     >
                       <MdCheck />
                       {actionLoading === request._id + "_accept"
@@ -322,9 +322,9 @@ const BloodRequests = () => {
       {/* Decline Modal */}
       {showDeclineModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
-            <h2 className="text-lg font-bold text-gray-800 mb-2">Decline Blood Request</h2>
-            <p className="text-sm text-gray-500 mb-6">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 w-full max-w-md">
+            <h2 className="text-lg font-bold text-gray-800 dark:text-gray-200 mb-2">Decline Blood Request</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
               Are you sure you want to decline the{" "}
               <span className="font-semibold text-red-600">
                 {selectedRequest?.bloodGroup}
@@ -337,7 +337,7 @@ const BloodRequests = () => {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowDeclineModal(false)}
-                className="flex-1 py-2.5 border-2 border-gray-200 text-gray-600 font-semibold text-sm rounded-xl"
+                className="flex-1 py-2.5 border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 font-semibold text-sm rounded-xl"
               >
                 Cancel
               </button>

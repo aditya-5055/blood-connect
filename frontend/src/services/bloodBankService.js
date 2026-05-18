@@ -91,3 +91,13 @@ export const getTransactions = async (filters) => {
   const response = await apiConnector("GET", BLOOD_BANK_APIS.GET_TRANSACTIONS, null, null, filters || {});
   return response.data;
 };
+
+export const markNoShow = async (requestId) => {
+  const response = await apiConnector("PUT", BLOOD_BANK_APIS.MARK_NO_SHOW(requestId));
+  return response.data;
+};
+
+export const getHospitalLocations = async () => {
+  const response = await apiConnector("GET", BLOOD_BANK_APIS.GET_HOSPITAL_LOCATIONS);
+  return response.data;
+};

@@ -19,21 +19,20 @@ const otpSchema = new mongoose.Schema({
 });
 
 // Send email when OTP is created
-async function sendVerificationEmail(email, otp) {
-  try {
-    await mailSender(
-      email,
-      "Verify your email - Blood Donation System",
-      otpTemplate(otp)
-    );
-  } catch (error) {
-    throw error;
-  }
+function sendVerificationEmail(email, otp) {
+  mailSender(
+    email,
+    "Verify your email - Blood Donation System",
+    otpTemplate(otp)
+  ).catch((error) => {
+    console.error("OTP email send failed:", error.message);
+  });
 }
 
-otpSchema.pre("save", async function () {
+otpSchema.pre("save", function () {
   if (this.isNew) {
-    await sendVerificationEmail(this.email, this.otp);
+    // Keep OTP creation fast by sending email in background.
+    sendVerificationEmail(this.email, this.otp);
   }
 });
 

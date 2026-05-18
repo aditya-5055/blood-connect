@@ -51,24 +51,24 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-purple-50 to-white flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
+    <div className="auth-page">
+      <div className="auth-shell max-w-md">
 
         {/* Logo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-purple-600 rounded-full mb-4 shadow-lg">
             <FaUserShield className="text-white text-2xl" />
           </div>
-          <h1 className="text-3xl font-bold text-gray-800">BloodConnect</h1>
-          <p className="text-gray-500 mt-1">Admin Portal</p>
+          <h1 className="auth-brand-title">BloodConnect</h1>
+          <p className="auth-brand-subtitle">Admin Portal</p>
         </div>
 
         {/* Form Card */}
-        <div className="bg-white rounded-2xl shadow-xl p-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-2">
+        <div className="auth-card p-8">
+          <h2 className="auth-card-title mb-2">
             Admin Login 🔐
           </h2>
-          <p className="text-sm text-gray-400 mb-6">
+          <p className="auth-card-subtitle mb-6">
             Restricted access — authorized personnel only
           </p>
 
@@ -76,7 +76,7 @@ const AdminLogin = () => {
 
             {/* Email */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Email Address
               </label>
               <div className="relative">
@@ -88,14 +88,14 @@ const AdminLogin = () => {
                   onChange={handleChange}
                   placeholder="Enter admin email"
                   required
-                  className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                  className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                 />
               </div>
             </div>
 
             {/* Password */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                 Password
               </label>
               <div className="relative">
@@ -107,12 +107,12 @@ const AdminLogin = () => {
                   onChange={handleChange}
                   placeholder="Enter admin password"
                   required
-                  className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                  className="w-full pl-10 pr-10 py-3 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
                 >
                   {showPassword ? <FaEyeSlash /> : <FaEye />}
                 </button>
@@ -139,13 +139,13 @@ const AdminLogin = () => {
 
           {/* Links */}
           <div className="mt-6 text-center space-y-2">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               Are you a donor?{" "}
               <Link to="/donor/login" className="text-red-600 font-semibold hover:underline">
                 Donor Login
               </Link>
             </p>
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               Are you a facility?{" "}
               <Link to="/facility/login" className="text-orange-500 font-semibold hover:underline">
                 Facility Login
@@ -156,7 +156,7 @@ const AdminLogin = () => {
 
         {/* Back to Home */}
         <div className="text-center mt-4">
-          <Link to="/" className="text-sm text-gray-400 hover:text-gray-600">
+          <Link to="/" className="auth-back-link">
             ← Back to Home
           </Link>
         </div>

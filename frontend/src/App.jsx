@@ -13,16 +13,13 @@ import { ROLES } from "./constants/roles";
 
 // Public Pages
 import Home from "./pages/Home";
-import Findblood from "./pages/Findblood ";
+import Findblood from "./pages/Findblood";
 import Camps from "./pages/Camps";
 import Learn from "./pages/Learn";
 import About from "./pages/About";
 // Auth Pages
-import DonorLogin from "./pages/auth/DonorLogin";
-import DonorRegister from "./pages/auth/DonorRegister";
-import FacilityLogin from "./pages/auth/FacilityLogin";
-import FacilityRegister from "./pages/auth/FacilityRegister";
-import AdminLogin from "./pages/auth/AdminLogin";
+import Login from "./pages/auth/Login";
+import Register from "./pages/auth/Register";
 
 // Donor Pages
 import DonorDashboard from "./pages/donor/Dashboard";
@@ -32,6 +29,7 @@ import NearbyCamps from "./pages/donor/NearbyCamps";
 import NearbyRequests from "./pages/donor/NearbyRequests";
 import DonationHistory from "./pages/donor/DonationHistory";
 import MyRequests from "./pages/donor/MyRequests";
+import DonorMap from "./pages/donor/DonorMap";
 
 // Blood Bank Pages
 import BloodBankDashboard from "./pages/bloodbank/Dashboard";
@@ -39,15 +37,19 @@ import BloodBankProfile from "./pages/bloodbank/Profile";
 import Inventory from "./pages/bloodbank/Inventory";
 import DonationRequests from "./pages/bloodbank/DonationRequests";
 import BloodRequests from "./pages/bloodbank/BloodRequests";
-// import Camps from "./pages/bloodbank/Camps";
+import BloodBankCamps from "./pages/bloodbank/Camps";
 import Transactions from "./pages/bloodbank/Transactions";
+// ✅ Added Reports Import
+import Reports from "./pages/bloodbank/Reports"; 
+import BloodBankMap from "./pages/bloodbank/BloodBankMap";
 
 // Hospital Pages
 import HospitalDashboard from "./pages/hospital/Dashboard";
 import HospitalProfile from "./pages/hospital/Profile";
 import PostRequest from "./pages/hospital/PostRequest";
 import HospitalMyRequests from "./pages/hospital/MyRequests";
-
+import HospitalReports from "./pages/hospital/Reports";
+import HospitalMap from "./pages/hospital/HospitalMap";
 // Admin Pages
 import AdminDashboard from "./pages/admin/Dashboard";
 import PendingFacilities from "./pages/admin/PendingFacilities";
@@ -55,11 +57,13 @@ import ManageFacilities from "./pages/admin/ManageFacilities";
 import AllDonors from "./pages/admin/AllDonors";
 import AllRequests from "./pages/admin/AllRequests";
 
+
+import ForgotPassword from "./pages/auth/ForgotPassword"
+import UpdatePassword from "./pages/auth/UpdatePassword"
+
+
 function App() {
   return (
-    
-
-   
     <Routes>
 
       {/* ─────────────────────────────────── */}
@@ -71,16 +75,19 @@ function App() {
         <Route path="/learn" element={<Learn />} />
         <Route path="/about" element={<About />} />
         <Route path="/find-blood" element={<Findblood />} />
+        {/* ─────────────────────────────────── */}
+        {/* Auth Routes */}
+        {/* ─────────────────────────────────── */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/donor/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/donor/register" element={<Register />} />
+        <Route path="/facility/login" element={<Login />} />
+        <Route path="/facility/register" element={<Register />} />
+        <Route path="/admin/login" element={<Login />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/update-password/:token" element={<UpdatePassword />} />
       </Route>
-
-      {/* ─────────────────────────────────── */}
-      {/* Auth Routes */}
-      {/* ─────────────────────────────────── */}
-      <Route path="/donor/login" element={<DonorLogin />} />
-      <Route path="/donor/register" element={<DonorRegister />} />
-      <Route path="/facility/login" element={<FacilityLogin />} />
-      <Route path="/facility/register" element={<FacilityRegister />} />
-      <Route path="/admin/login" element={<AdminLogin />} />
 
       {/* ─────────────────────────────────── */}
       {/* Donor Routes */}
@@ -94,6 +101,7 @@ function App() {
           <Route path="/donor/nearby-requests" element={<NearbyRequests />} />
           <Route path="/donor/donation-history" element={<DonationHistory />} />
           <Route path="/donor/my-requests" element={<MyRequests />} />
+          <Route path="/donor/map" element={<DonorMap />} />
         </Route>
       </Route>
 
@@ -107,8 +115,11 @@ function App() {
           <Route path="/bloodbank/inventory" element={<Inventory />} />
           <Route path="/bloodbank/donation-requests" element={<DonationRequests />} />
           <Route path="/bloodbank/blood-requests" element={<BloodRequests />} />
-          <Route path="/bloodbank/camps" element={<Camps />} />
+          <Route path="/bloodbank/camps" element={<BloodBankCamps />} />
           <Route path="/bloodbank/transactions" element={<Transactions />} />
+          {/* ✅ Added Reports Route */}
+          <Route path="/bloodbank/reports" element={<Reports />} />
+          <Route path="/bloodbank/map" element={<BloodBankMap />} />
         </Route>
       </Route>
 
@@ -121,6 +132,8 @@ function App() {
           <Route path="/hospital/profile" element={<HospitalProfile />} />
           <Route path="/hospital/post-request" element={<PostRequest />} />
           <Route path="/hospital/my-requests" element={<HospitalMyRequests />} />
+          <Route path="/hospital/reports" element={<HospitalReports />} />
+          <Route path="/hospital/map" element={<HospitalMap />} />
         </Route>
       </Route>
 
@@ -138,7 +151,6 @@ function App() {
       </Route>
 
     </Routes>
-     
   );
 }
 

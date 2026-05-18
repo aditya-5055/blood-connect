@@ -1,4 +1,3 @@
- 
 const BASE = "";
 
 // ─────────────────────────────────
@@ -12,22 +11,28 @@ export const AUTH_APIS = {
   FACILITY_REGISTER: "/api/auth/facility/register",
   FACILITY_LOGIN: "/api/auth/facility/login",
   ADMIN_LOGIN: "/api/auth/admin/login",
+  GOOGLE_DONOR_LOGIN: "/api/auth/donor/google",
+  GOOGLE_FACILITY_LOGIN: "/api/auth/facility/google",
+
+  RESET_PASSWORD_TOKEN: "/api/auth/reset-password-token", 
+  RESET_PASSWORD: "/api/auth/reset-password",             
 };
 
 // ─────────────────────────────────
 // PUBLIC APIs — No token required
 // ─────────────────────────────────
 export const PUBLIC_APIS = {
-  FIND_BLOOD: "/api/public/find-blood",         // ?city=pune&bloodGroup=B+
-  GET_BLOOD_BANKS: "/api/public/blood-banks",   // ?city=pune
-  GET_HOSPITALS: "/api/public/hospitals",       // ?city=pune
-  GET_CAMPS: "/api/public/camps",               // ?city=pune
+  FIND_BLOOD: "/api/public/find-blood",         
+  GET_BLOOD_BANKS: "/api/public/blood-banks",   
+  GET_HOSPITALS: "/api/public/hospitals",       
+  GET_CAMPS: "/api/public/camps",               
 };
 
 // ─────────────────────────────────
 // DONOR APIs
 // ─────────────────────────────────
 export const DONOR_APIS = {
+  
   GET_PROFILE: "/api/donor/profile",
   UPDATE_PROFILE: "/api/donor/update-profile",
   TOGGLE_AVAILABILITY: "/api/donor/toggle-availability",
@@ -37,10 +42,16 @@ export const DONOR_APIS = {
   GET_NEARBY_REQUESTS: "/api/donor/nearby-requests",
   PROACTIVE_DONATE: "/api/donor/proactive-donate",
   GET_MY_DONATION_REQUESTS: "/api/donor/my-donation-requests",
+  
+  // ✅ UPDATED: Added generic update status for Confirm/Decline logic
+  UPDATE_REQUEST_STATUS: (id) => `/api/donor/update-request/${id}`,
+  CONFIRM_INVITE: (id) => `/api/donor/confirm-invite/${id}`, 
+  
   REGISTER_FOR_CAMP: (id) => `/api/donor/register-camp/${id}`,
   ACCEPT_BLOOD_REQUEST: (id) => `/api/donor/accept-request/${id}`,
   DECLINE_BLOOD_REQUEST: (id) => `/api/donor/decline-request/${id}`,
   GET_MY_CAMPS: "/api/donor/my-camps",
+  CANCEL_REQUEST: (id) => `/api/donor/cancel-request/${id}`,
 };
 
 // ─────────────────────────────────
@@ -52,8 +63,12 @@ export const BLOOD_BANK_APIS = {
   GET_INVENTORY: "/api/bloodbank/inventory",
   UPDATE_INVENTORY: "/api/bloodbank/inventory/update",
   GET_DONATION_REQUESTS: "/api/bloodbank/donation-requests",
+  
+  // ✅ MARK NO-SHOW & COMPLETE Logic
   PROCESS_DONATION_REQUEST: (id) => `/api/bloodbank/donation-requests/${id}`,
   COMPLETE_DONATION: (id) => `/api/bloodbank/complete-donation/${id}`,
+  MARK_NO_SHOW: (id) => `/api/bloodbank/mark-no-show/${id}`,
+
   GET_BLOOD_REQUESTS: "/api/bloodbank/blood-requests",
   RESPOND_TO_BLOOD_REQUEST: (id) => `/api/bloodbank/blood-requests/${id}/respond`,
   COMPLETE_BLOOD_REQUEST: (id) => `/api/bloodbank/blood-requests/${id}/complete`,
@@ -65,6 +80,7 @@ export const BLOOD_BANK_APIS = {
   UPDATE_CAMP_STATUS: (campId) => `/api/bloodbank/camp/${campId}/status`,
   GET_TRANSACTIONS: "/api/bloodbank/transactions",
   GET_ACCEPTED_BLOOD_REQUESTS: "/api/bloodbank/blood-requests/accepted",
+  GET_HOSPITAL_LOCATIONS: "/api/bloodbank/hospital-locations",
 };
 
 // ─────────────────────────────────
@@ -78,6 +94,7 @@ export const HOSPITAL_APIS = {
   GET_REQUEST_STATUS: (id) => `/api/hospital/blood-request/${id}/status`,
   CANCEL_REQUEST: (id) => `/api/hospital/blood-request/${id}/cancel`,
   COMPLETE_REQUEST: (id) => `/api/hospital/blood-request/${id}/complete`,
+  GET_NEARBY_BLOOD_BANKS: "/api/hospital/nearby-bloodbanks",
 };
 
 // ─────────────────────────────────
@@ -90,4 +107,21 @@ export const ADMIN_APIS = {
   GET_ALL_DONORS: "/api/admin/donors",
   GET_ALL_FACILITIES: "/api/admin/facilities",
   GET_ALL_REQUESTS: "/api/admin/requests",
+};
+
+// ─────────────────────────────────
+// NOTIFICATION APIs
+// ─────────────────────────────────
+export const NOTIFICATION_APIS = {
+  GET_USER_NOTIFICATIONS: "/api/notifications",
+  MARK_AS_READ: (id) => `/api/notifications/${id}/read`,
+  MARK_ALL_AS_READ: "/api/notifications/read-all",
+  DELETE_NOTIFICATION: (id) => `/api/notifications/${id}`, 
+};
+
+// Add inside your BASE_URL structure
+export const REPORT_APIS = {
+  GET_CAMP_REPORT: "/api/reports/camps",
+  GET_PROACTIVE_REPORT: "/api/reports/proactive",
+  GET_INVENTORY_REPORT: "/api/reports/inventory",
 };

@@ -9,6 +9,24 @@ const mailSender = require("../utils/mailSender");
 const bloodRequestAcceptedTemplate = require("../mail/templates/bloodRequestAcceptedTemplate");
 const campRegistrationTemplate = require("../mail/templates/campRegistrationTemplate");
 const newProactiveDonorTemplate = require("../mail/templates/newProactiveDonorTemplate");
+const mongoose = require("mongoose");
+// ✅ NEW: Import the notification utility
+const sendNotification = require("../utils/sendNotification");
+
+const getTrustRestrictionMessage = (donor) => {
+  const now = new Date();
+
+  if (donor.penaltyUntil && donor.penaltyUntil > now) {
+    return `Your account is temporarily restricted due to a missed confirmed appointment. You can request again after ${new Date(donor.penaltyUntil).toDateString()}.`;
+  }
+
+  if ((donor.trustScore || 100) < 40) {
+    return "Your trust score is too low to create new requests right now. Complete future commitments on time to improve your score.";
+  }
+
+  return null;
+};
+
 // ─────────────────────────────────
 // @route  GET /api/donor/profile
 // @access Donor only
@@ -44,7 +62,6 @@ exports.getProfile = async (req, res) => {
 // ─────────────────────────────────
 exports.updateProfile = async (req, res) => {
   try {
-    // ✅ Add location here
     const { fullName, phone, address, weight, location } = req.body;
 
     const donor = await Donor.findById(req.user.id);
@@ -59,7 +76,7 @@ exports.updateProfile = async (req, res) => {
     if (phone) donor.phone = phone;
     if (address) donor.address = address;
     if (weight) donor.weight = weight;
-    if (location) donor.location = location; // ✅ Add this line
+    if (location) donor.location = location;
 
     await donor.save();
 
@@ -72,7 +89,7 @@ exports.updateProfile = async (req, res) => {
         phone: donor.phone,
         address: donor.address,
         weight: donor.weight,
-        location: donor.location, // ✅ Add this line
+        location: donor.location,
       },
     });
   } catch (error) {
@@ -90,7 +107,6 @@ exports.updateProfile = async (req, res) => {
 // ─────────────────────────────────
 exports.toggleAvailability = async (req, res) => {
   try {
-    // 1️⃣ Find donor
     const donor = await Donor.findById(req.user.id);
     if (!donor) {
       return res.status(404).json({
@@ -99,7 +115,6 @@ exports.toggleAvailability = async (req, res) => {
       });
     }
 
-    // 2️⃣ Toggle availability
     donor.isAvailable = !donor.isAvailable;
     await donor.save();
 
@@ -125,7 +140,6 @@ exports.toggleAvailability = async (req, res) => {
 // ─────────────────────────────────
 exports.getDonationHistory = async (req, res) => {
   try {
-    // 1️⃣ Find donor
     const donor = await Donor.findById(req.user.id).populate(
       "donationHistory.facility",
       "name address phone facilityType",
@@ -138,7 +152,6 @@ exports.getDonationHistory = async (req, res) => {
       });
     }
 
-    // 2️⃣ Check next eligible donation date
     let nextEligibleDate = null;
     if (donor.lastDonationDate) {
       const last = new Date(donor.lastDonationDate);
@@ -149,6 +162,9 @@ exports.getDonationHistory = async (req, res) => {
       success: true,
       message: "Donation history fetched successfully",
       count: donor.donationHistory.length,
+      trustScore: donor.trustScore,
+      penaltyUntil: donor.penaltyUntil,
+      medicalLockUntil: donor.medicalLockUntil,
       nextEligibleDate,
       donationHistory: donor.donationHistory,
     });
@@ -169,7 +185,6 @@ exports.getNearbyBloodBanks = async (req, res) => {
   try {
     let { longitude, latitude } = req.query;
 
-    // ✅ If no coordinates provided → use donor's saved location
     if (!longitude || !latitude) {
       const donor = await Donor.findById(req.user.id);
       if (donor?.location?.coordinates?.[0] !== 0) {
@@ -213,17 +228,14 @@ exports.getNearbyBloodBanks = async (req, res) => {
   }
 };
 
-
 // ─────────────────────────────────
 // @route  GET /api/donor/nearby-camps
 // @access Donor only
 // ─────────────────────────────────
-
 exports.getNearbyCamps = async (req, res) => {
   try {
     let { longitude, latitude } = req.query;
 
-    // ✅ If no coordinates provided → use donor's saved location
     if (!longitude || !latitude) {
       const donor = await Donor.findById(req.user.id);
       if (donor?.location?.coordinates?.[0] !== 0) {
@@ -237,10 +249,8 @@ exports.getNearbyCamps = async (req, res) => {
       }
     }
 
-    // ✅ Auto update camp statuses first
     await updateCampStatuses();
 
-    // ✅ Find nearby upcoming and ongoing camps
     const camps = await Camp.find({
       status: { $in: ["upcoming", "ongoing"] },
       location: {
@@ -254,7 +264,6 @@ exports.getNearbyCamps = async (req, res) => {
       },
     }).populate("bloodBankId", "name phone address");
 
-    // ✅ Add availableSeats and isRegistered
     const campsWithSeats = camps.map((camp) => {
       const campObj = camp.toObject();
       const availableSeats = camp.capacity - camp.registeredDonors.length;
@@ -282,20 +291,18 @@ exports.getNearbyCamps = async (req, res) => {
   }
 };
 
-
+// ─────────────────────────────────
+// @route  GET /api/donor/my-camps
+// @access Donor only
+// ─────────────────────────────────
 exports.getMyCampRegistrations = async (req, res) => {
   try {
-
-    // Auto update statuses
     await updateCampStatuses();
 
-    // Find all camps
     const camps = await Camp.find({
       "registeredDonors.donorId": req.user.id,
     }).populate("bloodBankId", "name phone address");
 
-
-    // Get donor specific details
     const myCamps = camps.map((camp) => {
       const myRegistration = camp.registeredDonors.find(
         (d) => d.donorId.toString() === req.user.id.toString()
@@ -334,25 +341,63 @@ exports.getMyCampRegistrations = async (req, res) => {
   }
 };
 
+// ─────────────────────────────────
+// @route  PUT /api/donor/confirm-invite/:id
+// @desc   Donor confirms the bank's appointment invitation
+// @access Donor only
+// ─────────────────────────────────
+exports.confirmDonationInvite = async (req, res) => {
+  try {
+    const donationRequest = await ProactiveDonation.findById(req.params.id);
+
+    if (!donationRequest || donationRequest.status !== "invited") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid request or invitation has expired.",
+      });
+    }
+
+    if (donationRequest.donorId.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    // Move status to confirmed
+    donationRequest.status = "confirmed";
+    donationRequest.confirmedAt = new Date();
+    await donationRequest.save();
+
+    // Lock the donor so they don't apply elsewhere while committed
+    await Donor.findByIdAndUpdate(req.user.id, { eligibleToDonate: false });
+
+    const bloodBank = await Facility.findById(donationRequest.bloodBankId);
+
+    // Notify Blood Bank
+    await sendNotification(
+      bloodBank._id,
+      "Facility",
+      "Appointment Confirmed! ✅",
+      `${req.user.fullName} has confirmed the appointment for ${new Date(donationRequest.appointmentDate).toDateString()}.`,
+      "/bloodbank/donation-requests"
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Appointment confirmed! Please arrive on time to maintain your trust score.",
+      donationRequest,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 // ─────────────────────────────────
-// @route  POST /api/donor/proactive-donate
-// @access Donor only
+// @route  POST /api/donor/proactive-donate (Updated with Penalties)
 // ─────────────────────────────────
 exports.proactiveDonate = async (req, res) => {
   try {
     const { bloodBankId, notes } = req.body;
-
-    // 1️⃣ Validate input
-    if (!bloodBankId) {
-      return res.status(400).json({
-        success: false,
-        message: "Please select a blood bank",
-      });
-    }
-
-    // 2️⃣ Find donor
     const donor = await Donor.findById(req.user.id);
+
     if (!donor) {
       return res.status(404).json({
         success: false,
@@ -360,7 +405,25 @@ exports.proactiveDonate = async (req, res) => {
       });
     }
 
-    // 3️⃣ Check 90 day rule
+    const trustRestrictionMessage = getTrustRestrictionMessage(donor);
+    if (trustRestrictionMessage) {
+      return res.status(403).json({
+        success: false,
+        message: trustRestrictionMessage,
+      });
+    }
+
+    // ✅ UBER LOGIC: We removed the 7-day penalty ban here.
+    // Even if their trust score is low due to previous No-Shows, they can request again.
+
+    // ✅ REAL WORLD CHECK: Medical Lock (Maintained)
+    if (donor.medicalLockUntil && new Date() < donor.medicalLockUntil) {
+      return res.status(403).json({
+        success: false,
+        message: `You are on medical recovery based on a previous facility review. Eligible after ${donor.medicalLockUntil.toDateString()}.`,
+      });
+    }
+
     if (donor.lastDonationDate) {
       const lastDonation = new Date(donor.lastDonationDate);
       const now = new Date();
@@ -371,13 +434,11 @@ exports.proactiveDonate = async (req, res) => {
           message: `You are not eligible to donate yet. You can donate after ${Math.ceil(90 - diffDays)} days`,
         });
       } else {
-        // ✅ 90 days passed — auto reset eligibleToDonate
         donor.eligibleToDonate = true;
         await donor.save();
       }
     }
 
-    // 4️⃣ Check eligibleToDonate
     if (!donor.eligibleToDonate) {
       return res.status(400).json({
         success: false,
@@ -385,7 +446,6 @@ exports.proactiveDonate = async (req, res) => {
       });
     }
 
-    // 5️⃣ Check blood bank exists and approved
     const bloodBank = await Facility.findById(bloodBankId);
     if (!bloodBank || bloodBank.facilityType !== "blood-bank") {
       return res.status(404).json({
@@ -400,7 +460,6 @@ exports.proactiveDonate = async (req, res) => {
       });
     }
 
-    // 6️⃣ Check donor not already sent request to THIS SAME blood bank
     const existingRequest = await ProactiveDonation.findOne({
       donorId: req.user.id,
       bloodBankId: bloodBankId,
@@ -415,17 +474,17 @@ exports.proactiveDonate = async (req, res) => {
           : "You already sent a request to this blood bank",
       });
     }
-
-    // 7️⃣ Create proactive donation request
+    
     const donationRequest = await ProactiveDonation.create({
       donorId: req.user.id,
       bloodBankId,
       bloodGroup: donor.bloodGroup,
       notes,
       status: "pending",
+      expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000) // 3-day expiry for bank response
     });
 
-    // 8️⃣ Notify blood bank about new donation request
+    // Notify blood bank about new donation request (Email)
     try {
       await mailSender(
         bloodBank.email,
@@ -443,18 +502,22 @@ exports.proactiveDonate = async (req, res) => {
       console.error("Blood bank notification email failed:", emailError.message);
     }
 
+    // In-App Notification to Blood Bank
+    await sendNotification(
+      bloodBank._id,
+      "Facility",
+      "New Donor Request 🩸",
+      `${donor.fullName} (${donor.bloodGroup}) requested to donate at your facility. Please review.`,
+      "/bloodbank/donation-requests" 
+    );
+
     return res.status(201).json({
       success: true,
-      message: "Donation request sent successfully. Please wait for blood bank confirmation.",
+      message: "Request sent. If the bank doesn't respond in 72 hours, the request will auto-expire.",
       donationRequest,
     });
-
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to send donation request",
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
@@ -464,10 +527,8 @@ exports.proactiveDonate = async (req, res) => {
 // ─────────────────────────────────
 exports.registerForCamp = async (req, res) => {
   try {
-    // 1️⃣ Auto update camp statuses first
     await updateCampStatuses();
 
-    // 2️⃣ Find donor
     const donor = await Donor.findById(req.user.id);
     if (!donor) {
       return res.status(404).json({
@@ -476,7 +537,14 @@ exports.registerForCamp = async (req, res) => {
       });
     }
 
-    // 3️⃣ Check 90 day rule
+    const trustRestrictionMessage = getTrustRestrictionMessage(donor);
+    if (trustRestrictionMessage) {
+      return res.status(403).json({
+        success: false,
+        message: trustRestrictionMessage,
+      });
+    }
+
     if (donor.lastDonationDate) {
       const lastDonation = new Date(donor.lastDonationDate);
       const now = new Date();
@@ -487,13 +555,11 @@ exports.registerForCamp = async (req, res) => {
           message: `You are not eligible to donate yet. You can donate after ${Math.ceil(90 - diffDays)} days`,
         });
       } else {
-        // ✅ 90 days passed — auto reset eligibleToDonate
         donor.eligibleToDonate = true;
         await donor.save();
       }
     }
 
-    // 4️⃣ Check eligibleToDonate
     if (!donor.eligibleToDonate) {
       return res.status(400).json({
         success: false,
@@ -501,7 +567,6 @@ exports.registerForCamp = async (req, res) => {
       });
     }
 
-    // 5️⃣ Check no confirmed proactive request
     const confirmedRequest = await ProactiveDonation.findOne({
       donorId: req.user.id,
       status: "confirmed",
@@ -513,7 +578,6 @@ exports.registerForCamp = async (req, res) => {
       });
     }
 
-    // 6️⃣ Find camp
     const camp = await Camp.findById(req.params.id);
     if (!camp) {
       return res.status(404).json({
@@ -522,7 +586,6 @@ exports.registerForCamp = async (req, res) => {
       });
     }
 
-    // 7️⃣ Check camp is upcoming or ongoing
     if (!["upcoming", "ongoing"].includes(camp.status)) {
       return res.status(400).json({
         success: false,
@@ -530,7 +593,6 @@ exports.registerForCamp = async (req, res) => {
       });
     }
 
-    // 8️⃣ Check capacity
     const availableSeats = camp.capacity - camp.registeredDonors.length;
     if (availableSeats <= 0) {
       return res.status(400).json({
@@ -539,7 +601,6 @@ exports.registerForCamp = async (req, res) => {
       });
     }
 
-    // 9️⃣ Check already registered for THIS camp
     const alreadyRegistered = camp.registeredDonors.find(
       (d) => d.donorId.toString() === req.user.id
     );
@@ -550,7 +611,6 @@ exports.registerForCamp = async (req, res) => {
       });
     }
 
-    // 🔟 Check donor not registered for another camp on SAME date
     const conflictingCamp = await Camp.findOne({
       status: { $in: ["upcoming", "ongoing"] },
       campDate: {
@@ -568,7 +628,6 @@ exports.registerForCamp = async (req, res) => {
       });
     }
 
-    // 1️⃣1️⃣ Register donor
     camp.registeredDonors.push({
       donorId: req.user.id,
       registeredAt: new Date(),
@@ -576,9 +635,10 @@ exports.registerForCamp = async (req, res) => {
     });
     await camp.save();
 
-    // 1️⃣2️⃣ Send camp registration email to donor
+    const bloodBank = await Facility.findById(camp.bloodBankId);
+    
+    // Send camp registration email to donor
     try {
-      const bloodBank = await Facility.findById(camp.bloodBankId);
       await mailSender(
         donor.email,
         "Camp Registration Confirmed - Blood Donation System",
@@ -595,6 +655,15 @@ exports.registerForCamp = async (req, res) => {
     } catch (emailError) {
       console.error("Camp registration email failed:", emailError.message);
     }
+
+    // ✅ NEW: In-App Notification to Blood Bank that created the camp
+    await sendNotification(
+      camp.bloodBankId,
+      "Facility",
+      "Camp Registration 📋",
+      `${donor.fullName} registered for your upcoming camp: ${camp.name}.`,
+      `/bloodbank/camps` 
+    );
 
     return res.status(200).json({
       success: true,
@@ -618,8 +687,6 @@ exports.registerForCamp = async (req, res) => {
     });
   }
 };
-
-
 
 // ─────────────────────────────────
 // @route  GET /api/donor/my-donation-requests
@@ -656,7 +723,6 @@ exports.getNearbyBloodRequests = async (req, res) => {
 
     let { longitude, latitude } = req.query;
 
-    // 1️⃣ Find donor first
     const donor = await Donor.findById(req.user.id);
     if (!donor) {
       return res.status(404).json({
@@ -665,8 +731,6 @@ exports.getNearbyBloodRequests = async (req, res) => {
       });
     }
 
-    // 2️⃣ Check donor eligibility FIRST
-    // ✅ Auto reset if 90 days passed
     if (donor.lastDonationDate) {
       const lastDonation = new Date(donor.lastDonationDate);
       const now = new Date();
@@ -677,7 +741,6 @@ exports.getNearbyBloodRequests = async (req, res) => {
       }
     }
 
-    // 3️⃣ If not eligible → return empty
     if (!donor.eligibleToDonate) {
       return res.status(200).json({
         success: true,
@@ -687,7 +750,6 @@ exports.getNearbyBloodRequests = async (req, res) => {
       });
     }
 
-    // 4️⃣ If not available → return empty
     if (!donor.isAvailable) {
       return res.status(200).json({
         success: true,
@@ -697,7 +759,6 @@ exports.getNearbyBloodRequests = async (req, res) => {
       });
     }
 
-    // 5️⃣ Use saved location if no coords provided
     if (!longitude || !latitude) {
       if (donor?.location?.coordinates?.[0] !== 0) {
         longitude = donor.location.coordinates[0];
@@ -710,7 +771,6 @@ exports.getNearbyBloodRequests = async (req, res) => {
       }
     }
 
-    // 6️⃣ Donors only see "both" stage requests
     const requests = await BloodRequest.find({
       stage: "both",
       status: "active",
@@ -743,13 +803,13 @@ exports.getNearbyBloodRequests = async (req, res) => {
     });
   }
 };
+
 // ─────────────────────────────────
 // @route  PUT /api/donor/accept-request/:id
 // @access Donor only
 // ─────────────────────────────────
 exports.acceptBloodRequest = async (req, res) => {
   try {
-    // 1️⃣ Find request
     const request = await BloodRequest.findById(req.params.id).populate(
       "hospitalId",
       "name email phone address"
@@ -761,7 +821,6 @@ exports.acceptBloodRequest = async (req, res) => {
       });
     }
 
-    // 2️⃣ Check request is still active
     if (request.status !== "active") {
       return res.status(400).json({
         success: false,
@@ -769,7 +828,6 @@ exports.acceptBloodRequest = async (req, res) => {
       });
     }
 
-    // 3️⃣ Check deadline not passed
     if (new Date() > request.deadline) {
       return res.status(400).json({
         success: false,
@@ -777,7 +835,6 @@ exports.acceptBloodRequest = async (req, res) => {
       });
     }
 
-    // 4️⃣ Check stage is "both" — donors can only accept "both" stage
     if (request.stage !== "both") {
       return res.status(400).json({
         success: false,
@@ -785,7 +842,6 @@ exports.acceptBloodRequest = async (req, res) => {
       });
     }
 
-    // 5️⃣ Find donor
     const donor = await Donor.findById(req.user.id);
     if (!donor) {
       return res.status(404).json({
@@ -794,7 +850,14 @@ exports.acceptBloodRequest = async (req, res) => {
       });
     }
 
-    // 6️⃣ Auto reset eligibility if 90 days passed
+    const trustRestrictionMessage = getTrustRestrictionMessage(donor);
+    if (trustRestrictionMessage) {
+      return res.status(403).json({
+        success: false,
+        message: trustRestrictionMessage,
+      });
+    }
+
     if (donor.lastDonationDate) {
       const lastDonation = new Date(donor.lastDonationDate);
       const now = new Date();
@@ -805,13 +868,11 @@ exports.acceptBloodRequest = async (req, res) => {
           message: `You are not eligible to donate yet. You can donate after ${Math.ceil(90 - diffDays)} days`,
         });
       } else {
-        // ✅ 90 days passed — auto reset
         donor.eligibleToDonate = true;
         await donor.save();
       }
     }
 
-    // 7️⃣ Check eligibleToDonate
     if (!donor.eligibleToDonate) {
       return res.status(400).json({
         success: false,
@@ -819,7 +880,6 @@ exports.acceptBloodRequest = async (req, res) => {
       });
     }
 
-    // 8️⃣ Check availability
     if (!donor.isAvailable) {
       return res.status(400).json({
         success: false,
@@ -827,7 +887,6 @@ exports.acceptBloodRequest = async (req, res) => {
       });
     }
 
-    // 9️⃣ Check no confirmed proactive request
     const confirmedRequest = await ProactiveDonation.findOne({
       donorId: req.user.id,
       status: "confirmed",
@@ -839,7 +898,6 @@ exports.acceptBloodRequest = async (req, res) => {
       });
     }
 
-    // 🔟 Update request status
     request.status = "confirmed";
     request.respondedBy = {
       responderType: "donor",
@@ -847,7 +905,6 @@ exports.acceptBloodRequest = async (req, res) => {
     };
     await request.save();
 
-    // 1️⃣1️⃣ Lock donor from any other donations
     donor.eligibleToDonate = false;
     await donor.save();
 
@@ -869,6 +926,15 @@ exports.acceptBloodRequest = async (req, res) => {
     } catch (emailError) {
       console.error("Hospital notification email failed:", emailError.message);
     }
+
+    // ✅ NEW: In-App Notification to the Hospital
+    await sendNotification(
+      request.hospitalId._id,
+      "Facility",
+      "Donor Responding! 🏃‍♂️",
+      `${donor.fullName} (${donor.bloodGroup}) accepted your urgent blood request and is on their way.`,
+      "/hospital/my-requests"
+    );
 
     return res.status(200).json({
       success: true,
@@ -901,7 +967,10 @@ exports.acceptBloodRequest = async (req, res) => {
   }
 };
 
-
+// ─────────────────────────────────
+// @route  PUT /api/donor/decline-request/:id
+// @access Donor only
+// ─────────────────────────────────
 exports.declineBloodRequest = async (req, res) => {
   try {
     const request = await BloodRequest.findById(req.params.id);
@@ -919,14 +988,11 @@ exports.declineBloodRequest = async (req, res) => {
       });
     }
 
-    // ✅ Add donor to declinedBy
     if (!request.declinedBy.includes(req.user.id)) {
       request.declinedBy.push(req.user.id);
     }
     await request.save();
 
-    // ✅ Check if ALL nearby donors AND banks declined
-    // → expire immediately
     await updateBloodRequestStages();
 
     return res.status(200).json({
@@ -939,5 +1005,64 @@ exports.declineBloodRequest = async (req, res) => {
       message: "Failed to decline request",
       error: error.message,
     });
+  }
+};
+// ─────────────────────────────────
+// @route  PATCH /api/donor/cancel-request/:id
+// ─────────────────────────────────
+exports.cancelDonationRequest = async (req, res) => {
+  try {
+    // ✅ CHANGE THIS: Must match the :id in your routes file
+    const { id } = req.params; 
+    const donorId = req.user.id;
+
+    // 1. Validate ID
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Invalid ID format" 
+      });
+    }
+
+    // 2. Find and Update
+    const request = await ProactiveDonation.findOne({ _id: id, donorId });
+
+    if (!request) {
+      return res.status(404).json({ 
+        success: false, 
+        message: "Donation request not found" 
+      });
+    }
+
+    // 3. Set status and unlock donor
+    request.status = "cancelled";
+    await request.save();
+
+    await Donor.findByIdAndUpdate(donorId, { eligibleToDonate: true });
+
+    return res.status(200).json({
+      success: true,
+      message: "Request successfully cancelled/declined",
+    });
+  } catch (error) {
+    console.error("CANCEL ERROR:", error.message);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// This function MUST exist because your route file calls it
+exports.cancelDonationAppointment = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Basic logic to clear a confirmed appointment
+    await ProactiveDonation.findByIdAndUpdate(id, { status: "cancelled" });
+    await Donor.findByIdAndUpdate(req.user.id, { eligibleToDonate: true });
+
+    return res.status(200).json({
+      success: true,
+      message: "Appointment cancelled successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

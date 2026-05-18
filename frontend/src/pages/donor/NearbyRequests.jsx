@@ -83,11 +83,11 @@ const NearbyRequests = () => {
 
   const getUrgencyColor = (urgency) => {
     switch (urgency) {
-      case "Critical": return "bg-red-100 text-red-600";
-      case "High": return "bg-orange-100 text-orange-600";
-      case "Moderate": return "bg-yellow-100 text-yellow-600";
-      case "Normal": return "bg-green-100 text-green-600";
-      default: return "bg-gray-100 text-gray-500";
+      case "Critical": return "bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800/50";
+      case "High": return "bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800/50";
+      case "Moderate": return "bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800/50";
+      case "Normal": return "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800/50";
+      default: return "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400";
     }
   };
 
@@ -112,37 +112,39 @@ const NearbyRequests = () => {
     <div className="space-y-6">
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gradient-to-r from-red-50 via-white to-blue-50 dark:from-red-900/20 dark:via-gray-800 dark:to-blue-900/20 p-4 sm:p-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Nearby Requests</h1>
-          <p className="text-gray-500 mt-1">Blood requests from hospitals within 10km</p>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Nearby Requests</h1>
+          <p className="text-gray-600 dark:text-gray-300 mt-1 text-sm">Blood requests from hospitals within 10km</p>
         </div>
         <button
           onClick={handleRefreshLocation}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all"
+          className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all"
         >
           <MdMyLocation />
           Refresh
         </button>
       </div>
+      </div>
 
       {/* Info Box */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-        <p className="text-sm text-blue-700">
+      <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800/50 rounded-2xl p-4">
+        <p className="text-sm text-blue-700 dark:text-blue-300 leading-relaxed">
           🩸 These are urgent blood requests from hospitals matching your blood group <span className="font-bold">within 10km</span> of your location.
         </p>
       </div>
 
       {/* Count */}
-      <span className="inline-block px-3 py-1 bg-gray-100 text-gray-600 text-sm font-medium rounded-full">
+      <span className="inline-flex items-center px-3 py-1 bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 text-sm font-medium rounded-full border border-gray-200 dark:border-gray-700">
         {requests.length} requests found nearby
       </span>
 
       {/* List */}
       {requests.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow p-12 text-center">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-10 sm:p-12 text-center">
           <FaTint className="text-gray-300 text-5xl mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700">No requests nearby</h3>
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">No requests nearby</h3>
           <p className="text-gray-400 text-sm mt-1">
             No active blood requests matching your blood group within 10km
           </p>
@@ -158,36 +160,36 @@ const NearbyRequests = () => {
           {requests.map((request) => (
             <div
               key={request._id}
-              className="bg-white rounded-2xl shadow p-5 hover:shadow-md transition-all border border-gray-50"
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 sm:p-5 hover:shadow-md transition-all border border-gray-200 dark:border-gray-700"
             >
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
 
                 {/* Left */}
                 <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <FaTint className="text-red-600 text-lg" />
+                  <div className="w-11 h-11 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <FaTint className="text-red-600 dark:text-red-300 text-lg" />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-2xl font-bold text-red-600">{request.bloodGroup}</span>
-                      <span className="text-gray-600 font-medium">{request.units} unit(s)</span>
+                      <span className="text-gray-600 dark:text-gray-400 font-medium">{request.units} unit(s)</span>
                       <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${getUrgencyColor(request.urgencyLevel)}`}>
                         {request.urgencyLevel}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 mt-1 text-sm text-gray-600">
+                    <div className="flex items-center gap-2 mt-1 text-sm text-gray-600 dark:text-gray-400">
                       <FaHospital className="text-orange-500 flex-shrink-0" />
-                      <span className="font-medium">{request.hospitalId?.name}</span>
+                      <span className="font-medium break-words">{request.hospitalId?.name}</span>
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
                       <MdLocationOn className="flex-shrink-0" />
-                      {request.hospitalId?.address?.city}, {request.hospitalId?.address?.state}
+                      <span className="break-words">{request.hospitalId?.address?.city}, {request.hospitalId?.address?.state}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* Deadline */}
-                <div className="text-right">
+                <div className="sm:text-right">
                   <div className="flex items-center gap-1 text-xs text-orange-600 font-medium">
                     <MdAccessTime />
                     {getTimeRemaining(request.deadline)}
@@ -197,17 +199,17 @@ const NearbyRequests = () => {
               </div>
 
               {/* Hospital Phone */}
-              <div className="mb-4 p-3 bg-gray-50 rounded-xl">
-                <p className="text-xs text-gray-500">Hospital Contact</p>
-                <p className="text-sm font-semibold text-gray-800 mt-0.5">{request.hospitalId?.phone}</p>
+              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700">
+                <p className="text-xs text-gray-500 dark:text-gray-400">Hospital Contact</p>
+                <p className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-0.5">{request.hospitalId?.phone}</p>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button
                   onClick={() => handleDecline(request._id)}
                   disabled={actionLoading === request._id + "_decline"}
-                  className="flex-1 py-2.5 border-2 border-gray-200 text-gray-600 hover:border-red-300 hover:text-red-600 text-sm font-semibold rounded-xl transition-all disabled:opacity-50"
+                  className="flex-1 py-2.5 border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-red-300 hover:text-red-600 text-sm font-semibold rounded-xl transition-all disabled:opacity-50"
                 >
                   {actionLoading === request._id + "_decline" ? "..." : "Decline"}
                 </button>

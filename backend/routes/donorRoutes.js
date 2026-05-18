@@ -12,33 +12,40 @@ const {
   getMyDonationRequests,
   getNearbyBloodRequests,
   acceptBloodRequest,
-   getMyCampRegistrations,
+  getMyCampRegistrations,
   declineBloodRequest,
+  cancelDonationAppointment, 
+  cancelDonationRequest,      
+  confirmDonationInvite,
 } = require("../controllers/donorController");
+
 const { auth, isDonor } = require("../middleware/authMiddleware");
 
-// Profile routes
+// Discovery & Profile
 router.get("/profile", auth, isDonor, getProfile);
 router.put("/update-profile", auth, isDonor, updateProfile);
 router.put("/toggle-availability", auth, isDonor, toggleAvailability);
-
-// Donation history
 router.get("/donation-history", auth, isDonor, getDonationHistory);
-
-// Nearby routes
 router.get("/nearby-bloodbanks", auth, isDonor, getNearbyBloodBanks);
 router.get("/nearby-camps", auth, isDonor, getNearbyCamps);
 router.get("/nearby-requests", auth, isDonor, getNearbyBloodRequests);
 
-// Proactive donation routes
+// Donation Flow
 router.post("/proactive-donate", auth, isDonor, proactiveDonate);
 router.get("/my-donation-requests", auth, isDonor, getMyDonationRequests);
 
-// Camp routes
-router.post("/register-camp/:id", auth, isDonor, registerForCamp);
+// ✅ Standardized parameter to :id
+router.put("/confirm-invite/:id", auth, isDonor, confirmDonationInvite);
 
-// Blood request routes
+// Camps & Direct Hospital Requests
+router.post("/register-camp/:id", auth, isDonor, registerForCamp);
 router.put("/accept-request/:id", auth, isDonor, acceptBloodRequest);
 router.put("/decline-request/:id", auth, isDonor, declineBloodRequest);
 router.get("/my-camps", auth, isDonor, getMyCampRegistrations);
+
+// --- Cancellation / Decline Logic ---
+router.put("/cancel-appointment/:id", auth, isDonor, cancelDonationAppointment);
+// ✅ Standardized parameter to :id to match DONOR_APIS
+router.patch("/cancel-request/:id", auth, isDonor, cancelDonationRequest);
+
 module.exports = router;

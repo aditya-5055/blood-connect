@@ -1,5 +1,7 @@
+
 const Facility = require("../models/facilityModel");
 const BloodRequest = require("../models/bloodRequestModel");
+const Notification = require("../models/notificationModel");
 const Donor = require("../models/donorModel");
 const BloodStock = require("../models/bloodStockModel");
 const updateBloodRequestStages = require("../utils/bloodRequestUpdater");
@@ -8,6 +10,68 @@ const donationCompletedTemplate = require("../mail/templates/donationCompletedTe
 const newHospitalRequestTemplate = require("../mail/templates/newHospitalRequestTemplate");
 const bloodRequestAcceptedTemplate = require("../mail/templates/bloodRequestAcceptedTemplate");
 const bloodRequestExpiredTemplate = require("../mail/templates/bloodRequestExpiredTemplate");
+
+// ✅ NEW: Import the notification utility
+const sendNotification = require("../utils/sendNotification");
+
+const notifyNearbyBanksForRequest = async (hospital, bloodRequest) => {
+  try {
+    const latestRequest = await BloodRequest.findById(bloodRequest._id).select("status");
+    if (!latestRequest || latestRequest.status !== "active") {
+      return;
+    }
+
+    const nearbyBanks = await Facility.find({
+      facilityType: "blood-bank",
+      status: "approved",
+      isActive: true,
+      location: {
+        $near: {
+          $geometry: { type: "Point", coordinates: hospital.location.coordinates },
+          $maxDistance: 50000,
+        },
+      },
+    }).select("_id name email");
+
+    const notificationJobs = nearbyBanks.map(async (bank) => {
+      const currentRequest = await BloodRequest.findById(bloodRequest._id).select("status");
+      if (!currentRequest || currentRequest.status !== "active") {
+        return;
+      }
+
+      if (mailSender) {
+        await mailSender(
+          bank.email,
+          "New Blood Request - Action Required",
+          newHospitalRequestTemplate(
+            bank.name,
+            hospital.name,
+            bloodRequest.bloodGroup,
+            bloodRequest.units,
+            bloodRequest.urgencyLevel,
+            bloodRequest.deadline
+          )
+        );
+      }
+
+      if (sendNotification) {
+        await sendNotification(
+          bank._id,
+          "Facility",
+          "Urgent Hospital Request 🏥",
+          `${hospital.name} needs ${bloodRequest.units} units of ${bloodRequest.bloodGroup}.`,
+          "/bloodbank/blood-requests",
+          { relatedRequest: bloodRequest._id }
+        );
+      }
+    });
+
+    await Promise.allSettled(notificationJobs);
+  } catch (error) {
+    console.error("Non-critical nearby-bank notification error:", error.message);
+  }
+};
+
 // ─────────────────────────────────
 // @route  GET /api/hospital/profile
 // @access Hospital only
@@ -44,7 +108,6 @@ exports.getProfile = async (req, res) => {
 // ─────────────────────────────────
 exports.updateProfile = async (req, res) => {
   try {
-    // ✅ Add location here
     const { phone, emergencyContact, address, operatingHours, location } = req.body;
 
     const hospital = await Facility.findById(req.user.id);
@@ -59,7 +122,7 @@ exports.updateProfile = async (req, res) => {
     if (emergencyContact) hospital.emergencyContact = emergencyContact;
     if (address) hospital.address = address;
     if (operatingHours) hospital.operatingHours = operatingHours;
-    if (location) hospital.location = location; // ✅ Now works
+    if (location) hospital.location = location; 
 
     await hospital.save();
 
@@ -101,7 +164,6 @@ exports.getMyRequests = async (req, res) => {
     const requests = await BloodRequest.find(filter)
       .sort({ createdAt: -1 });
 
-    // ✅ Manually fetch responder details becaause it helps in search bar opton 
     const formattedRequests = await Promise.all(
       requests.map(async (request) => {
         const obj = request.toObject();
@@ -111,7 +173,6 @@ exports.getMyRequests = async (req, res) => {
         if (obj.respondedBy?.responderId) {
           try {
             if (obj.respondedBy.responderType === "bloodbank") {
-              // ✅ Fetch from Facility model
               const Facility = require("../models/facilityModel");
               const facility = await Facility.findById(
                 obj.respondedBy.responderId
@@ -128,7 +189,6 @@ exports.getMyRequests = async (req, res) => {
                 };
               }
             } else if (obj.respondedBy.responderType === "donor") {
-              // ✅ Fetch from Donor model
               const Donor = require("../models/donorModel");
               const donor = await Donor.findById(
                 obj.respondedBy.responderId
@@ -182,16 +242,13 @@ exports.getMyRequests = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────
-// @route  POST /api/hospital/blood-request
-// @access Hospital only
-// ✅ FIX: Removed duplicate definition of this function
-// ─────────────────────────────────
-exports.postBloodRequest = async (req, res) => {
+
+ 
+ exports.postBloodRequest = async (req, res) => {
   try {
     const { bloodGroup, units, urgencyLevel, notes } = req.body;
 
-    // 1️⃣ Validate required fields
+    // 1. Validation
     if (!bloodGroup || !units || !urgencyLevel) {
       return res.status(400).json({
         success: false,
@@ -199,124 +256,55 @@ exports.postBloodRequest = async (req, res) => {
       });
     }
 
-    // 2️⃣ Validate blood group
-    const validBloodGroups = [
-      "A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-",
-    ];
-    if (!validBloodGroups.includes(bloodGroup)) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid blood group",
-      });
-    }
-
-    // 3️⃣ Validate urgency level
-    const validUrgencyLevels = ["Critical", "High", "Moderate", "Normal"];
-    if (!validUrgencyLevels.includes(urgencyLevel)) {
-      return res.status(400).json({
-        success: false,
-        message: "urgencyLevel must be Critical, High, Moderate or Normal",
-      });
-    }
-
-    // 4️⃣ Validate units
-    if (units < 1) {
-      return res.status(400).json({
-        success: false,
-        message: "Units must be at least 1",
-      });
-    }
-
-    // 5️⃣ Find hospital and get location
+    // 2. Fetch Hospital & Location
     const hospital = await Facility.findById(req.user.id);
     if (!hospital) {
-      return res.status(404).json({
-        success: false,
-        message: "Hospital not found",
-      });
+      return res.status(404).json({ success: false, message: "Hospital not found" });
     }
 
-    // 6️⃣ Check hospital has location
-    if (
-      !hospital.location ||
-      !hospital.location.coordinates ||
-      hospital.location.coordinates[0] === 0
-    ) {
+    if (!hospital.location || !hospital.location.coordinates || hospital.location.coordinates[0] === 0) {
       return res.status(400).json({
         success: false,
         message: "Hospital location not set. Please update profile first.",
       });
     }
 
-    // 7️⃣ Create blood request
-    // Deadline auto set by pre-save hook:
-    // Critical → 2 hours
-    // High → 6 hours
-    // Moderate → 12 hours
-    // Normal → 24 hours
+    // 3. Create Request (Standardizing data to prevent Schema errors)
     const bloodRequest = await BloodRequest.create({
       hospitalId: req.user.id,
-      bloodGroup,
-      units,
+      bloodGroup: bloodGroup.trim(),
+      units: Number(units),
       urgencyLevel,
-      notes,
+      notes: notes || "",
       status: "active",
       stage: "bloodbank",
       location: hospital.location,
+      // Fallback deadline (24h) if your pre-save hook isn't working
+      deadline: new Date(Date.now() + 24 * 60 * 60 * 1000) 
     });
 
-    // 8️⃣ Notify nearby blood banks
-    try {
-      const nearbyBloodBanks = await Facility.find({
-        facilityType: "blood-bank",
-        status: "approved",
-        isActive: true,
-        location: {
-          $near: {
-            $geometry: {
-              type: "Point",
-              coordinates: hospital.location.coordinates,
-            },
-            $maxDistance: 50000,
-          },
-        },
-      });
-
-      for (const bank of nearbyBloodBanks) {
-        await mailSender(
-          bank.email,
-          "New Blood Request - Action Required - Blood Donation System",
-          newHospitalRequestTemplate(
-            bank.name,
-            hospital.name,
-            bloodRequest.bloodGroup,
-            bloodRequest.units,
-            bloodRequest.urgencyLevel,
-            bloodRequest.deadline
-          )
-        );
-      }
-    } catch (emailError) {
-      console.error("Blood bank notification email failed:", emailError.message);
-    }
-
-    return res.status(201).json({
+    const responsePayload = {
       success: true,
-      message: "Blood request posted successfully. Nearby blood banks have been notified.",
-      bloodRequest: {
-        id: bloodRequest._id,
-        bloodGroup: bloodRequest.bloodGroup,
-        units: bloodRequest.units,
-        urgencyLevel: bloodRequest.urgencyLevel,
-        status: bloodRequest.status,
-        stage: bloodRequest.stage,
-        deadline: bloodRequest.deadline,
-        notes: bloodRequest.notes,
-        deadlineInfo: `Blood banks have until ${bloodRequest.deadline} to respond`,
-      },
+      message: "Blood request posted successfully.",
+      bloodRequest,
+    };
+
+    // Respond immediately; notify nearby banks in background so UI is not blocked.
+    res.status(201).json(responsePayload);
+
+    notifyNearbyBanksForRequest(hospital, bloodRequest).catch((error) => {
+      console.error("Background notification task failed:", error.message);
     });
+
+    return;
 
   } catch (error) {
+    // 🔍 THIS WILL TELL US EXACTLY WHAT IS WRONG IN THE TERMINAL
+    console.log("========= BACKEND CRASH LOG =========");
+    console.error("ERROR MESSAGE:", error.message);
+    console.error("ERROR STACK:", error.stack);
+    console.log("=====================================");
+
     return res.status(500).json({
       success: false,
       message: "Failed to post blood request",
@@ -331,7 +319,6 @@ exports.postBloodRequest = async (req, res) => {
 // ─────────────────────────────────
 exports.cancelRequest = async (req, res) => {
   try {
-    // 1️⃣ Find request
     const request = await BloodRequest.findById(req.params.id);
     if (!request) {
       return res.status(404).json({
@@ -340,7 +327,6 @@ exports.cancelRequest = async (req, res) => {
       });
     }
 
-    // 2️⃣ Check request belongs to this hospital
     if (request.hospitalId.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -348,7 +334,6 @@ exports.cancelRequest = async (req, res) => {
       });
     }
 
-    // 3️⃣ Check request can be cancelled — only active requests
     if (request.status !== "active") {
       return res.status(400).json({
         success: false,
@@ -356,9 +341,13 @@ exports.cancelRequest = async (req, res) => {
       });
     }
 
-    // 4️⃣ Cancel request
     request.status = "cancelled";
     await request.save();
+
+    await Notification.deleteMany({
+      recipientModel: "Facility",
+      relatedRequest: request._id,
+    });
 
     return res.status(200).json({
       success: true,
@@ -388,7 +377,6 @@ exports.cancelRequest = async (req, res) => {
 exports.getRequestStatus = async (req, res) => {
   try {
      await updateBloodRequestStages();
-    // 1️⃣ Find request
     const request = await BloodRequest.findById(req.params.id)
       .populate("hospitalId", "name phone address")
       .populate("respondedBy.responderId");
@@ -400,7 +388,6 @@ exports.getRequestStatus = async (req, res) => {
       });
     }
 
-    // 2️⃣ Check request belongs to this hospital
     if (request.hospitalId._id.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -408,7 +395,6 @@ exports.getRequestStatus = async (req, res) => {
       });
     }
 
-    // 3️⃣ Build responder details
     let responderDetails = null;
     if (request.respondedBy && request.respondedBy.responderId) {
       if (request.respondedBy.responderType === "bloodbank") {
@@ -428,7 +414,6 @@ exports.getRequestStatus = async (req, res) => {
       }
     }
 
-    // 4️⃣ Calculate time remaining
     const now = new Date();
     const timeRemaining = request.deadline - now;
     const hoursRemaining = Math.max(
@@ -484,7 +469,6 @@ exports.completeBloodRequest = async (req, res) => {
     const TransactionHistory = require("../models/transactionHistoryModel");
     const Donor = require("../models/donorModel");
 
-    // 1️⃣ Find request
     const request = await BloodRequest.findById(req.params.id);
     if (!request) {
       return res.status(404).json({
@@ -493,7 +477,6 @@ exports.completeBloodRequest = async (req, res) => {
       });
     }
 
-    // 2️⃣ Check request belongs to this hospital
     if (request.hospitalId.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -501,7 +484,6 @@ exports.completeBloodRequest = async (req, res) => {
       });
     }
 
-    // 3️⃣ Check request is confirmed
     if (request.status !== "confirmed") {
       return res.status(400).json({
         success: false,
@@ -509,7 +491,6 @@ exports.completeBloodRequest = async (req, res) => {
       });
     }
 
-    // 4️⃣ Check responder is donor
     if (request.respondedBy.responderType !== "donor") {
       return res.status(400).json({
         success: false,
@@ -517,7 +498,6 @@ exports.completeBloodRequest = async (req, res) => {
       });
     }
 
-    // 5️⃣ Find donor
     const donor = await Donor.findById(request.respondedBy.responderId);
     if (!donor) {
       return res.status(404).json({
@@ -526,7 +506,6 @@ exports.completeBloodRequest = async (req, res) => {
       });
     }
 
-    // 6️⃣ Update donor profile
     donor.lastDonationDate = new Date();
     donor.eligibleToDonate = false;
     donor.donationHistory.push({
@@ -538,12 +517,10 @@ exports.completeBloodRequest = async (req, res) => {
     });
     await donor.save();
 
-    // 7️⃣ Mark request completed
     request.status = "completed";
     request.completedAt = new Date();
     await request.save();
 
-    // 8️⃣ Send donation completed email to donor
     try {
       const hospital = await Facility.findById(req.user.id);
       await mailSender(
@@ -556,6 +533,15 @@ exports.completeBloodRequest = async (req, res) => {
           request.units,
           "hospital"
         )
+      );
+
+      // ✅ NEW: In-App Notification to the Donor directly from Hospital
+      await sendNotification(
+        donor._id,
+        "Donor",
+        "You're a Lifesaver! 🩸",
+        `Thank you for directly fulfilling our urgent request at ${hospital.name}. Your contribution matters.`,
+        "/donor/donation-history"
       );
     } catch (emailError) {
       console.error("Donation completed email failed:", emailError.message);
@@ -582,6 +568,87 @@ exports.completeBloodRequest = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to complete blood request",
+      error: error.message,
+    });
+  }
+};
+
+// ─────────────────────────────────
+// @route  GET /api/hospital/nearby-bloodbanks
+// @access Hospital only
+// ─────────────────────────────────
+exports.getNearbyBloodBanks = async (req, res) => {
+  try {
+    const hospital = await Facility.findById(req.user.id);
+    if (!hospital) {
+      return res.status(404).json({ success: false, message: "Hospital not found" });
+    }
+
+    if (!hospital.location || !hospital.location.coordinates || hospital.location.coordinates[0] === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Hospital location not set. Please update profile first.",
+      });
+    }
+
+    const bloodBanks = await Facility.find({
+      facilityType: "blood-bank",
+      status: "approved",
+      isActive: true,
+      location: {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: hospital.location.coordinates,
+          },
+          $maxDistance: 50000, // 50km
+        },
+      },
+    });
+
+    // Fetch stock summary for each bank
+    const banksWithStock = await Promise.all(
+      bloodBanks.map(async (bank) => {
+        const stock = await BloodStock.find({
+          bloodBankId: bank._id,
+          status: "available",
+        });
+
+        const stockSummary = {
+          "A+": 0, "A-": 0, "B+": 0, "B-": 0,
+          "O+": 0, "O-": 0, "AB+": 0, "AB-": 0,
+        };
+        stock.forEach((s) => {
+          if (stockSummary[s.bloodGroup] !== undefined) {
+            stockSummary[s.bloodGroup] += s.units;
+          }
+        });
+
+        return {
+          _id: bank._id,
+          name: bank.name,
+          phone: bank.phone,
+          address: bank.address,
+          location: bank.location,
+          operatingHours: bank.operatingHours,
+          is24x7: bank.is24x7,
+          facilityCategory: bank.facilityCategory,
+          stockSummary,
+        };
+      })
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: "Nearby blood banks fetched",
+      count: banksWithStock.length,
+      bloodBanks: banksWithStock,
+      hospitalLocation: hospital.location,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch nearby blood banks",
       error: error.message,
     });
   }

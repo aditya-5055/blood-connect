@@ -1,62 +1,79 @@
 import { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { FaTint, FaHandHoldingHeart, FaPhone } from "react-icons/fa";
-import { MdLocationOn, MdAccessTime, MdPhone } from "react-icons/md";
-import { getMyDonationRequests } from "../../services/donorService";
+import { FaTint, FaHandHoldingHeart, FaPhone, FaCalendarAlt, FaClock, FaCheck, FaTimes, FaTrashAlt } from "react-icons/fa";
+import { MdLocationOn, MdPhone } from "react-icons/md";
+import { getMyDonationRequests, updateDonationRequestStatus, cancelDonationRequest } from "../../services/donorService";
+// ✅ Import your Modal component (check path)
+import ConfirmationModal from "../../components/common/ConfirmationModal";
 
 const MyRequests = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("all");
+  const [actionLoading, setActionLoading] = useState(null);
 
-  const filters = ["all", "pending", "confirmed"];
+  // ✅ New States for Modal
+  const [showModal, setShowModal] = useState(false);
+  const [selectedRequestId, setSelectedRequestId] = useState(null);
 
   useEffect(() => {
     fetchRequests();
   }, []);
 
   const fetchRequests = async () => {
+    setLoading(true);
     try {
       const response = await getMyDonationRequests();
-      // ✅ Only show pending and confirmed
       const activeRequests = (response.donationRequests || []).filter(
-        (r) => r.status === "pending" || r.status === "confirmed"
+        (r) => ["pending", "invited", "confirmed"].includes(r.status)
       );
       setRequests(activeRequests);
     } catch (error) {
-      toast.error("Failed to load donation requests");
+      toast.error("Failed to load requests");
     } finally {
       setLoading(false);
     }
   };
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "pending": return "bg-yellow-100 text-yellow-600";
-      case "confirmed": return "bg-blue-100 text-blue-600";
-      default: return "bg-gray-100 text-gray-500";
+  // ✅ Modified: Opens modal instead of using window.confirm
+  const handleCancelClick = (requestId) => {
+    setSelectedRequestId(requestId);
+    setShowModal(true);
+  };
+
+  // ✅ New: Function triggered when user clicks "Yes" in Modal
+  const handleConfirmCancel = async () => {
+    if (!selectedRequestId) return;
+    
+    setActionLoading(selectedRequestId);
+    setShowModal(false); // Close modal immediately
+    try {
+      const response = await cancelDonationRequest(selectedRequestId);
+      if (response.success) {
+        toast.success("Request cancelled");
+        fetchRequests();
+      }
+    } catch (error) {
+      toast.error(error?.response?.data?.message || "Failed to cancel");
+    } finally {
+      setActionLoading(null);
+      setSelectedRequestId(null);
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case "pending": return "⏳";
-      case "confirmed": return "✅";
-      default: return "•";
+  const handleAppointmentAction = async (requestId, action) => {
+    setActionLoading(requestId);
+    try {
+      const response = await updateDonationRequestStatus(requestId, { action });
+      if (response.success) {
+        toast.success(`Appointment ${action === 'confirmed' ? 'confirmed' : 'declined'}!`);
+        fetchRequests();
+      }
+    } catch (error) {
+      toast.error("Action failed");
+    } finally {
+      setActionLoading(null);
     }
   };
-
-  const getStatusMessage = (status) => {
-    switch (status) {
-      case "pending": return "Waiting for blood bank to confirm your request";
-      case "confirmed": return "Blood bank confirmed! Please visit them as soon as possible 🏥";
-      default: return "";
-    }
-  };
-
-  const filtered = filter === "all"
-    ? requests
-    : requests.filter((r) => r.status === filter);
 
   if (loading) {
     return (
@@ -67,160 +84,109 @@ const MyRequests = () => {
   }
 
   return (
-    <div className="space-y-6">
-
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800">My Active Requests</h1>
-        <p className="text-gray-500 mt-1">Your pending and confirmed donation requests</p>
+    <div className="max-w-5xl mx-auto p-4 sm:p-5 space-y-6">
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gradient-to-r from-red-50 via-white to-orange-50 dark:from-red-900/20 dark:via-gray-800 dark:to-orange-900/20 p-4 sm:p-5">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">My Active Requests</h1>
+        <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">Track your donation requests and appointment status in one place.</p>
       </div>
 
-      {/* Stats Row */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-yellow-600">
-            {requests.filter((r) => r.status === "pending").length}
-          </p>
-          <p className="text-xs font-medium text-yellow-600 mt-0.5">⏳ Pending</p>
-        </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-blue-600">
-            {requests.filter((r) => r.status === "confirmed").length}
-          </p>
-          <p className="text-xs font-medium text-blue-600 mt-0.5">✅ Confirmed</p>
-        </div>
-      </div>
-
-      {/* Filter */}
-      <div className="flex gap-2 flex-wrap">
-        {filters.map((f) => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-3 py-1.5 rounded-xl text-sm font-medium transition-all capitalize ${
-              filter === f
-                ? "bg-red-600 text-white shadow-sm"
-                : "bg-white border border-gray-200 text-gray-600 hover:border-red-300 hover:text-red-600"
-            }`}
-          >
-            {f} ({f === "all" ? requests.length : requests.filter(r => r.status === f).length})
-          </button>
-        ))}
-      </div>
-
-      {/* Info Box */}
-      <div className="bg-gray-50 border border-gray-200 rounded-xl p-3">
-        <p className="text-xs text-gray-500">
-          💡 Completed and declined requests are available in{" "}
-          <a href="/donor/donation-history" className="text-red-600 font-semibold underline">
-            Donation History
-          </a>
-        </p>
-      </div>
-
-      {/* List */}
-      {filtered.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow p-12 text-center">
-          <FaHandHoldingHeart className="text-gray-300 text-5xl mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-gray-700">
-            {filter === "all" ? "No active requests" : `No ${filter} requests`}
-          </h3>
-          <p className="text-gray-400 text-sm mt-1">
-            {filter === "all"
-              ? "Send a donation request to a nearby blood bank"
-              : `You have no ${filter} requests right now`}
-          </p>
-          
-          <a href="/donor/nearby-banks"
-            className="inline-block mt-4 px-4 py-2 bg-red-600 text-white text-sm font-semibold rounded-xl hover:bg-red-700 transition-all"
-          >
-            Find Nearby Blood Banks →
+      {requests.length === 0 ? (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-10 sm:p-12 text-center border border-gray-200 dark:border-gray-700">
+          <div className="w-14 h-14 bg-red-100 dark:bg-red-900/30 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <FaHandHoldingHeart className="text-red-600 dark:text-red-300 text-2xl" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-300">No active requests</h3>
+          <p className="text-gray-500 dark:text-gray-400 mb-5 text-sm">You are free to request a donation.</p>
+          <a href="/donor/nearby-banks" className="inline-flex items-center justify-center px-6 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-semibold text-sm transition-all">
+            Find Banks →
           </a>
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map((request) => (
-            <div
-              key={request._id}
-              className={`bg-white rounded-2xl shadow p-5 hover:shadow-md transition-all border-l-4 ${
-                request.status === "pending" ? "border-yellow-400" : "border-blue-400"
-              }`}
-            >
-              {/* Header */}
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
-                    <FaTint className="text-red-600" />
+          {requests.map((request) => (
+            <div key={request._id} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-200 dark:border-gray-700 relative overflow-hidden">
+              <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-4 mb-6">
+                <div className="flex gap-4">
+                  <div className="w-12 h-12 bg-red-50 dark:bg-red-900/30 rounded-2xl flex items-center justify-center flex-shrink-0">
+                    <FaTint className="text-red-600 dark:text-red-300 text-xl" />
                   </div>
-                  <div>
-                    <h3 className="font-bold text-gray-800">
-                      {request.bloodBankId?.name}
-                    </h3>
-                    <p className="text-xs text-gray-500 mt-0.5">
-                      Proactive Donation Request
-                    </p>
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-800 dark:text-gray-200 text-lg break-words">{request.bloodBankId?.name}</h3>
+                    <div className="flex items-center gap-2">
+                        <span className={`px-2 py-0.5 text-[10px] font-bold uppercase rounded-md ${
+                            request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                            request.status === 'invited' ? 'bg-purple-100 text-purple-700' : 'bg-green-100 text-green-700'
+                        }`}>
+                            {request.status}
+                        </span>
+                        <span className="text-[10px] text-gray-400 font-medium">#{request._id.slice(-6)}</span>
+                    </div>
                   </div>
                 </div>
-                <span className={`px-2 py-0.5 text-xs rounded-full font-medium capitalize ${getStatusColor(request.status)}`}>
-                  {getStatusIcon(request.status)} {request.status}
-                </span>
-              </div>
 
-              {/* Status Message */}
-              <div className={`mb-4 p-3 rounded-xl text-sm border ${
-                request.status === "pending"
-                  ? "bg-yellow-50 text-yellow-700 border-yellow-200"
-                  : "bg-blue-50 text-blue-700 border-blue-200"
-              }`}>
-                {getStatusMessage(request.status)}
-              </div>
-
-              {/* Blood Bank Details */}
-              <div className="space-y-2 mb-3">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MdPhone className="text-gray-400 flex-shrink-0" />
-                  {request.bloodBankId?.phone}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MdLocationOn className="text-gray-400 flex-shrink-0" />
-                  {request.bloodBankId?.address?.city}, {request.bloodBankId?.address?.state}
-                </div>
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <MdAccessTime className="text-gray-400 flex-shrink-0" />
-                  {request.bloodBankId?.operatingHours?.open} - {request.bloodBankId?.operatingHours?.close}
-                </div>
-              </div>
-
-              {/* Notes */}
-              {request.notes && (
-                <div className="mb-3 p-3 bg-gray-50 rounded-xl">
-                  <p className="text-xs text-gray-500">Your Note:</p>
-                  <p className="text-sm text-gray-700 mt-0.5">{request.notes}</p>
-                </div>
-              )}
-
-              {/* Footer */}
-              <div className="pt-3 border-t border-gray-100 flex items-center justify-between">
-                <span className="text-xs text-gray-400">
-                  Sent: {new Date(request.createdAt).toDateString()}
-                </span>
-                {/* ✅ Confirmed — show Call button */}
-                {request.status === "confirmed" && (
-                  
-                   <a href={`tel:${request.bloodBankId?.phone}`}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs font-semibold rounded-lg transition-all"
+                {request.status !== "confirmed" && (
+                  <button
+                    onClick={() => handleCancelClick(request._id)} // ✅ Using Modal Trigger
+                    disabled={actionLoading === request._id}
+                    className="self-start sm:self-auto flex items-center gap-2 text-red-500 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 px-3 py-2 rounded-lg transition-all text-xs font-bold border border-transparent hover:border-red-100 dark:hover:border-red-800/50"
                   >
-                    <FaPhone className="text-xs" />
-                    Call Blood Bank
-                  </a>
+                    <FaTrashAlt />
+                    {actionLoading === request._id ? "..." : "Cancel Request"}
+                  </button>
                 )}
               </div>
 
+              {/* ... [Rest of your Status Specific UI (invited/confirmed)] ... */}
+              {request.status === "invited" && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-2xl p-4 border border-purple-100 dark:border-purple-800/50 mb-4 space-y-4">
+                  {/* ... Existing Invited UI code ... */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button 
+                        onClick={() => handleAppointmentAction(request._id, "confirmed")}
+                        className="flex-1 bg-purple-600 text-white font-bold py-2.5 rounded-xl text-xs hover:bg-purple-700 transition-all"
+                    >
+                        Accept Appointment
+                    </button>
+                    <button 
+                        onClick={() => handleAppointmentAction(request._id, "declined")}
+                        className="px-6 py-2.5 bg-white dark:bg-gray-800 border border-purple-200 text-purple-600 font-bold rounded-xl text-xs hover:bg-purple-50 transition-all"
+                    >
+                        Decline
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {request.status === "confirmed" && (
+                <div className="mb-4 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 p-4 rounded-xl border border-green-100 dark:border-green-800/50 flex items-center gap-3">
+                   <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">✅</div>
+                   <div>
+                        <p className="font-bold text-sm">Appointment Confirmed!</p>
+                        <p className="text-[11px] opacity-80">See you on {new Date(request.appointmentDate).toDateString()} at {request.slotTime}</p>
+                   </div>
+                </div>
+              )}
+
+              <div className="border-t border-gray-100 dark:border-gray-700 pt-4">
+                  <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-gray-500 dark:text-gray-400 text-xs">
+                    <div className="flex items-center gap-2"><MdPhone className="text-gray-400"/> {request.bloodBankId?.phone}</div>
+                    <div className="flex items-center gap-2"><MdLocationOn className="text-gray-400"/> {request.bloodBankId?.address?.city}</div>
+                  </div>
+              </div>
             </div>
           ))}
         </div>
       )}
 
+      {/* ✅ ADD THE CUSTOM MODAL HERE */}
+      <ConfirmationModal
+        isOpen={showModal}
+        onCancel={() => setShowModal(false)}
+        onConfirm={handleConfirmCancel}
+        title="Cancel Donation Request?"
+        message="Are you sure you want to cancel this request? This will allow you to contact other blood banks immediately."
+        confirmText="Yes, Cancel"
+      />
     </div>
   );
 };

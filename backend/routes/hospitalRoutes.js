@@ -8,6 +8,7 @@ const {
   cancelRequest,
   getRequestStatus,
   completeBloodRequest,
+  getNearbyBloodBanks,
 } = require("../controllers/hospitalController");
 const { auth, isHospital } = require("../middleware/authMiddleware");
 
@@ -21,5 +22,8 @@ router.get("/blood-requests", auth, isHospital, getMyRequests);
 router.put("/blood-request/:id/cancel", auth, isHospital, cancelRequest);
 router.get("/blood-request/:id/status", auth, isHospital, getRequestStatus);
 router.put("/blood-request/:id/complete", auth, isHospital, completeBloodRequest);
+
+// Map endpoint
+router.get("/nearby-bloodbanks", auth, isHospital, getNearbyBloodBanks);
 
 module.exports = router;

@@ -16,6 +16,87 @@ const campCompletedTemplate = require("../mail/templates/campCompletedTemplate")
 const newHospitalRequestTemplate = require("../mail/templates/newHospitalRequestTemplate");
 const newProactiveDonorTemplate = require("../mail/templates/newProactiveDonorTemplate");
 const bloodRequestAcceptedTemplate = require("../mail/templates/bloodRequestAcceptedTemplate");
+
+// ✅ NEW: Import the notification utility
+const sendNotification = require("../utils/sendNotification");
+
+const notifyHospitalRequestAccepted = async (request, bloodBank) => {
+  try {
+    const jobs = [];
+
+    if (request.hospitalId?.email && bloodBank) {
+      jobs.push(
+        mailSender(
+          request.hospitalId.email,
+          "Your blood request has been accepted - Blood Donation System",
+          bloodRequestAcceptedTemplate(
+            request.hospitalId.name,
+            bloodBank.name,
+            "bloodbank",
+            request.bloodGroup,
+            request.units,
+            bloodBank.phone,
+            bloodBank.address
+          )
+        )
+      );
+    }
+
+    if (request.hospitalId?._id && bloodBank) {
+      jobs.push(
+        sendNotification(
+          request.hospitalId._id,
+          "Facility",
+          "Request Accepted ✅",
+          `${bloodBank.name} has accepted your request for ${request.units} units of ${request.bloodGroup} blood.`,
+          "/hospital/my-requests"
+        )
+      );
+    }
+
+    await Promise.allSettled(jobs);
+  } catch (error) {
+    console.error("Background accepted-request notification failed:", error.message);
+  }
+};
+
+const notifyNearbyDonorsForEscalatedRequest = async (requestId) => {
+  try {
+    const request = await BloodRequest.findById(requestId).select(
+      "bloodGroup units location status stage"
+    );
+    if (!request || request.status !== "active" || request.stage !== "both") {
+      return;
+    }
+
+    const nearbyDonors = await Donor.find({
+      bloodGroup: request.bloodGroup,
+      isAvailable: true,
+      eligibleToDonate: true,
+      location: {
+        $near: {
+          $geometry: request.location,
+          $maxDistance: 10000,
+        },
+      },
+    }).select("_id");
+
+    await Promise.allSettled(
+      nearbyDonors.map((donor) =>
+        sendNotification(
+          donor._id,
+          "Donor",
+          "URGENT: Blood Needed 🚨",
+          `A nearby hospital needs ${request.bloodGroup} blood. All local banks are unavailable. Can you help?`,
+          "/donor/nearby-requests"
+        )
+      )
+    );
+  } catch (error) {
+    console.error("Background donor escalation notification failed:", error.message);
+  }
+};
+
 // ─────────────────────────────────
 // @route  GET /api/bloodbank/profile
 // @access Blood Bank only
@@ -50,10 +131,9 @@ exports.getProfile = async (req, res) => {
 // ─────────────────────────────────
 exports.updateProfile = async (req, res) => {
   try {
-    const { phone, emergencyContact, address, operatingHours, is24x7,location } =
+    const { phone, emergencyContact, address, operatingHours, is24x7, location } =
       req.body;
 
-    // 1️⃣ Find blood bank
     const bloodBank = await Facility.findById(req.user.id);
     if (!bloodBank) {
       return res.status(404).json({
@@ -62,13 +142,13 @@ exports.updateProfile = async (req, res) => {
       });
     }
 
-    // 2️⃣ Update only provided fields
     if (phone) bloodBank.phone = phone;
     if (emergencyContact) bloodBank.emergencyContact = emergencyContact;
     if (address) bloodBank.address = address;
     if (operatingHours) bloodBank.operatingHours = operatingHours;
     if (is24x7 !== undefined) bloodBank.is24x7 = is24x7;
- if (location) bloodBank.location = location;
+    if (location) bloodBank.location = location;
+    
     await bloodBank.save();
 
     return res.status(200).json({
@@ -102,7 +182,6 @@ exports.getInventory = async (req, res) => {
   try {
     const now = new Date();
 
-    // 1️⃣ Auto expire old batches first
     await BloodStock.updateMany(
       {
         bloodBankId: req.user.id,
@@ -112,7 +191,6 @@ exports.getInventory = async (req, res) => {
       { status: "expired" },
     );
 
-    // 2️⃣ Get all available batches
     const stock = await BloodStock.find({
       bloodBankId: req.user.id,
       status: "available",
@@ -120,16 +198,9 @@ exports.getInventory = async (req, res) => {
       .populate("donorId", "fullName phone")
       .sort({ expiryDate: 1 }); // FEFO
 
-    // 3️⃣ Calculate summary per blood group
     const summary = {
-      "A+": 0,
-      "A-": 0,
-      "B+": 0,
-      "B-": 0,
-      "O+": 0,
-      "O-": 0,
-      "AB+": 0,
-      "AB-": 0,
+      "A+": 0, "A-": 0, "B+": 0, "B-": 0,
+      "O+": 0, "O-": 0, "AB+": 0, "AB-": 0,
     };
 
     stock.forEach((batch) => {
@@ -137,8 +208,7 @@ exports.getInventory = async (req, res) => {
         summary[batch.bloodGroup] += batch.units;
       }
     });
-    // 4️⃣ Group batches by blood group
-    // with days remaining calculation
+
     const details = {};
     const bloodGroups = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
 
@@ -155,13 +225,8 @@ exports.getInventory = async (req, res) => {
             collectionDate: batch.collectionDate,
             expiryDate: batch.expiryDate,
             daysRemaining,
-            // Color coding for frontend
             expiryStatus:
-              daysRemaining <= 7
-                ? "critical"
-                : daysRemaining <= 15
-                  ? "warning"
-                  : "safe",
+              daysRemaining <= 7 ? "critical" : daysRemaining <= 15 ? "warning" : "safe",
             donor: batch.donorId,
             source: batch.source,
           };
@@ -169,7 +234,6 @@ exports.getInventory = async (req, res) => {
 
       details[group] = {
         total: summary[group],
-        // Low stock warning
         isLowStock: summary[group] < 5,
         batches,
       };
@@ -196,11 +260,28 @@ exports.getInventory = async (req, res) => {
 // ─────────────────────────────────
 exports.getDonationRequests = async (req, res) => {
   try {
-    // ✅ Show both pending AND confirmed
     const requests = await ProactiveDonation.find({
       bloodBankId: req.user.id,
-      status: { $in: ["pending", "confirmed"] },
-    }).populate("donorId", "fullName phone bloodGroup age weight");
+      status: { $in: ["pending", "invited", "confirmed", "cancelled"] },
+    }).populate("donorId", "fullName phone bloodGroup age weight trustScore penaltyUntil");
+
+    const statusOrder = {
+      pending: 1,
+      invited: 2,
+      confirmed: 3,
+      cancelled: 4,
+    };
+
+    requests.sort((a, b) => {
+      const statusDiff = (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
+      if (statusDiff !== 0) return statusDiff;
+
+      const aScore = a.donorId?.trustScore || 100;
+      const bScore = b.donorId?.trustScore || 100;
+      if (aScore !== bScore) return bScore - aScore;
+
+      return new Date(b.createdAt) - new Date(a.createdAt);
+    });
 
     return res.status(200).json({
       success: true,
@@ -217,197 +298,10 @@ exports.getDonationRequests = async (req, res) => {
   }
 };
 
-// ─────────────────────────────────
-// @route  PUT /api/bloodbank/donation-requests/:id
-// @access Blood Bank only
-// ─────────────────────────────────
-exports.processDonationRequest = async (req, res) => {
-  try {
-    const { action, declineReason } = req.body;
-
-    // 1️⃣ Validate action
-    if (!action || !["confirm", "decline"].includes(action)) {
-      return res.status(400).json({
-        success: false,
-        message: "Action must be confirm or decline",
-      });
-    }
-
-    // 2️⃣ Find donation request
-    const donationRequest = await ProactiveDonation.findById(req.params.id);
-    if (!donationRequest) {
-      return res.status(404).json({
-        success: false,
-        message: "Donation request not found",
-      });
-    }
-
-    // 3️⃣ Check request belongs to this blood bank
-    if (donationRequest.bloodBankId.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: "Not authorized to process this request",
-      });
-    }
-
-    // 4️⃣ Check request is still pending
-    if (donationRequest.status !== "pending") {
-      return res.status(400).json({
-        success: false,
-        message: "Request already processed",
-      });
-    }
-
-    if (action === "confirm") {
-      // 5️⃣ Check donor not already confirmed by another blood bank
-      const alreadyConfirmedProactive = await ProactiveDonation.findOne({
-        donorId: donationRequest.donorId,
-        status: "confirmed",
-      });
-
-      if (alreadyConfirmedProactive) {
-        return res.status(400).json({
-          success: false,
-          message: "Donor already confirmed by another blood bank",
-        });
-      }
-
-      // 6️⃣ Check donor already accepted a hospital blood request
-      const alreadyAcceptedHospital = await BloodRequest.findOne({
-        "respondedBy.responderId": donationRequest.donorId,
-        "respondedBy.responderType": "donor",
-        status: "confirmed",
-      });
-
-      if (alreadyAcceptedHospital) {
-        return res.status(400).json({
-          success: false,
-          message: "Donor has already committed to a hospital blood request",
-        });
-      }
-
-      // 7️⃣ Check eligibleToDonate flag
-      const donor = await Donor.findById(donationRequest.donorId);
-      if (!donor.eligibleToDonate) {
-        return res.status(400).json({
-          success: false,
-          message: "Donor is not available for donation right now",
-        });
-      }
-
-      // 8️⃣ Confirm this request
-      donationRequest.status = "confirmed";
-      await donationRequest.save();
-
-      // ✅ 9️⃣ Auto decline ALL other pending requests for same donor
-      await ProactiveDonation.updateMany(
-        {
-          donorId: donationRequest.donorId,
-          _id: { $ne: donationRequest._id }, // exclude current confirmed
-          status: "pending",
-        },
-        {
-          status: "declined",
-          declineReason: "Donor already confirmed by another blood bank",
-        }
-      );
-
-      // 🔟 Lock donor from any other donations
-      await Donor.findByIdAndUpdate(donationRequest.donorId, {
-        eligibleToDonate: false,
-      });
-
-      // 1️⃣1️⃣ Send confirmation email to donor
-      try {
-        const bloodBank = await Facility.findById(req.user.id);
-        await mailSender(
-          donor.email,
-          "Your donation request is confirmed - Blood Donation System",
-          proactiveConfirmedTemplate(
-            donor.fullName,
-            bloodBank.name,
-            bloodBank.phone,
-            bloodBank.address
-          )
-        );
-      } catch (emailError) {
-        console.error("Confirmation email failed:", emailError.message);
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: "Donation request confirmed. Donor will visit soon.",
-        donationRequest,
-      });
-
-    } else if (action === "decline") {
-
-      // 8️⃣ Decline reason required
-      if (!declineReason) {
-        return res.status(400).json({
-          success: false,
-          message: "Please provide decline reason",
-        });
-      }
-
-      // 9️⃣ Decline request
-      donationRequest.status = "declined";
-      donationRequest.declineReason = declineReason;
-      await donationRequest.save();
-
-      // 🔟 Reset donor eligibility
-      // only if no other confirmed request exists
-      const anyConfirmed = await ProactiveDonation.findOne({
-        donorId: donationRequest.donorId,
-        status: "confirmed",
-      });
-
-      if (!anyConfirmed) {
-        await Donor.findByIdAndUpdate(donationRequest.donorId, {
-          eligibleToDonate: true,
-        });
-      }
-
-      // 1️⃣1️⃣ Send decline email to donor
-      try {
-        const donor = await Donor.findById(donationRequest.donorId);
-        const bloodBank = await Facility.findById(req.user.id);
-        await mailSender(
-          donor.email,
-          "Your donation request has been declined - Blood Donation System",
-          proactiveDeclinedTemplate(
-            donor.fullName,
-            bloodBank.name,
-            declineReason
-          )
-        );
-      } catch (emailError) {
-        console.error("Decline email failed:", emailError.message);
-      }
-
-      return res.status(200).json({
-        success: true,
-        message: "Donation request declined",
-        donationRequest,
-      });
-    }
-
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to process donation request",
-      error: error.message,
-    });
-  }
-};
-
-
 exports.completeCamp = async (req, res) => {
   try {
-    // 1️⃣ Auto update camp statuses first
     await updateCampStatuses();
 
-    // 2️⃣ Find camp
     const camp = await Camp.findById(req.params.campId);
     if (!camp) {
       return res.status(404).json({
@@ -416,7 +310,6 @@ exports.completeCamp = async (req, res) => {
       });
     }
 
-    // 3️⃣ Check camp belongs to this blood bank
     if (camp.bloodBankId.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -424,7 +317,6 @@ exports.completeCamp = async (req, res) => {
       });
     }
 
-    // 4️⃣ Check camp is ongoing
     if (camp.status !== "ongoing") {
       return res.status(400).json({
         success: false,
@@ -435,11 +327,9 @@ exports.completeCamp = async (req, res) => {
     let totalDonors = 0;
     let totalUnits = 0;
 
-    // 5️⃣ Process each registered donor
     for (const registeredDonor of camp.registeredDonors) {
       if (registeredDonor.donationStatus === "donated") {
 
-        // 6️⃣ Add blood to inventory
         await BloodStock.create({
           bloodBankId: req.user.id,
           donorId: registeredDonor.donorId,
@@ -453,7 +343,6 @@ exports.completeCamp = async (req, res) => {
           ),
         });
 
-        // 7️⃣ Create transaction history
         await TransactionHistory.create({
           bloodBankId: req.user.id,
           transactionType: "stock-in",
@@ -464,7 +353,6 @@ exports.completeCamp = async (req, res) => {
           campId: camp._id,
         });
 
-        // 8️⃣ Update donor profile
         const donor = await Donor.findById(registeredDonor.donorId);
         if (donor) {
           donor.lastDonationDate = new Date();
@@ -478,7 +366,6 @@ exports.completeCamp = async (req, res) => {
           });
           await donor.save();
 
-          // 9️⃣ Send donation completed email to donor
           try {
             await mailSender(
               donor.email,
@@ -494,23 +381,29 @@ exports.completeCamp = async (req, res) => {
           } catch (emailError) {
             console.error("Camp donation email failed:", emailError.message);
           }
+
+          // ✅ NEW: In-App Notification to Donor
+          await sendNotification(
+            donor._id,
+            "Donor",
+            "You're a Lifesaver! 🩸",
+            `Thank you for donating at the ${camp.name} camp. Your contribution matters.`,
+            "/donor/donation-history"
+          );
         }
 
         totalDonors++;
         totalUnits += 1;
 
       } else if (registeredDonor.donationStatus === "registered") {
-        // 🔟 Mark remaining as no-show
         registeredDonor.donationStatus = "no-show";
       }
     }
 
-    // 1️⃣1️⃣ Update camp status
     camp.status = "completed";
     camp.actualDonors = totalDonors;
     await camp.save();
 
-    // 1️⃣2️⃣ Send camp summary email to blood bank
     try {
       const bloodBank = await Facility.findById(req.user.id);
       await mailSender(
@@ -549,118 +442,185 @@ exports.completeCamp = async (req, res) => {
   }
 };
 
+// ✅ Updated: Process Request (Invite or Decline)
+exports.processDonationRequest = async (req, res) => {
+  try {
+    const { action, declineReason, appointmentDate, slotTime } = req.body;
+    
+    if (!action || !["invite", "decline"].includes(action)) {
+      return res.status(400).json({ success: false, message: "Action must be invite or decline" });
+    }
 
-// ─────────────────────────────────
-// @route  PUT /api/bloodbank/complete-donation/:id
-// @access Blood Bank only
-// ─────────────────────────────────
+    const donationRequest = await ProactiveDonation.findById(req.params.id);
+    if (!donationRequest) return res.status(404).json({ success: false, message: "Request not found" });
+    
+    // Authorization check
+    if (donationRequest.bloodBankId.toString() !== req.user.id) {
+      return res.status(403).json({ success: false, message: "Unauthorized" });
+    }
+
+    const donor = await Donor.findById(donationRequest.donorId);
+    const bloodBank = await Facility.findById(req.user.id);
+
+    if (action === "invite") {
+      if (!appointmentDate || !slotTime) {
+        return res.status(400).json({ success: false, message: "Date and Time slot are required" });
+      }
+
+      // Prevent past dates
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (new Date(appointmentDate) < today) {
+        return res.status(400).json({ success: false, message: "Appointment date cannot be in the past." });
+      }
+
+      // Update request to 'invited' state
+      donationRequest.status = "invited";
+      donationRequest.appointmentDate = new Date(appointmentDate);
+      donationRequest.slotTime = slotTime;
+      // Link the generic status from our model discussion
+      // If you are using BloodRequest model for this, ensure the field names match
+      donationRequest.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); 
+      await donationRequest.save();
+
+      // Notify Donor to Accept/Decline the time
+      await sendNotification(
+        donor._id, 
+        "Donor", 
+        "Donation Invite 📅", 
+        `${bloodBank.name} invited you for ${new Date(appointmentDate).toDateString()} at ${slotTime}. Please confirm your availability!`, 
+        "/donor/my-requests"
+      );
+
+      return res.status(200).json({ 
+        success: true, 
+        message: "Invitation sent. Waiting for donor confirmation.", 
+        donationRequest 
+      });
+
+    } else {
+      // Logic for Decline
+      donationRequest.status = "declined";
+      donationRequest.declineReason = declineReason;
+      await donationRequest.save();
+      
+      // If medical reason, lock the donor for 30 days
+      if (declineReason?.toLowerCase().includes("medical")) {
+        donor.medicalLockUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+        await donor.save();
+      }
+
+      await sendNotification(
+        donor._id, 
+        "Donor", 
+        "Request Declined ℹ️", 
+        `${bloodBank.name} declined your request. Reason: ${declineReason}. You can try other banks.`, 
+        "/donor/donation-history"
+      );
+
+      return res.status(200).json({ success: true, message: "Request declined. Donor notified." });
+    }
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ✅ Updated: Complete Donation (Success Case)
 exports.completeDonation = async (req, res) => {
   try {
     const { units } = req.body;
-
-    // 1️⃣ Find donation request
     const donationRequest = await ProactiveDonation.findById(req.params.id);
-    if (!donationRequest) {
-      return res.status(404).json({
-        success: false,
-        message: "Donation request not found",
+
+    if (!donationRequest || donationRequest.status !== "confirmed") {
+      return res.status(400).json({ 
+        success: false, 
+        message: "Donation must be confirmed by the donor before marking as complete." 
       });
     }
 
-    // 2️⃣ Check request belongs to this blood bank
-    if (donationRequest.bloodBankId.toString() !== req.user.id) {
-      return res.status(403).json({
-        success: false,
-        message: "Not authorized to complete this request",
-      });
-    }
-
-    // 3️⃣ Check request is confirmed
-    if (donationRequest.status !== "confirmed") {
-      return res.status(400).json({
-        success: false,
-        message: "Request must be confirmed before completing",
-      });
-    }
-
-    // 4️⃣ Validate units
-    if (!units || units < 1) {
-      return res.status(400).json({
-        success: false,
-        message: "Please provide valid units donated",
-      });
-    }
-
-    // 5️⃣ Add blood to inventory
+    // 1. Add Blood to Stock
     await BloodStock.create({
       bloodBankId: req.user.id,
       donorId: donationRequest.donorId,
       bloodGroup: donationRequest.bloodGroup,
-      units,
+      units: units || 1,
       source: "proactive",
       status: "available",
-      expiryDate: new Date(new Date().getTime() + 42 * 24 * 60 * 60 * 1000),
+      expiryDate: new Date(Date.now() + 42 * 24 * 60 * 60 * 1000)
     });
 
-    // 6️⃣ Create transaction history
-    await TransactionHistory.create({
-      bloodBankId: req.user.id,
-      transactionType: "stock-in",
-      bloodGroup: donationRequest.bloodGroup,
-      units,
-      source: "proactive",
-      donorId: donationRequest.donorId,
-    });
-
-    // 7️⃣ Update donor lastDonationDate and donationHistory
+    // 2. Update Donor Stats & Start Cooldown
     const donor = await Donor.findById(donationRequest.donorId);
     donor.lastDonationDate = new Date();
-    // ✅ Keep false — donor must wait 90 days
-    donor.eligibleToDonate = false;
+    donor.eligibleToDonate = false; // Trigger 90-day virtual cooldown
     donor.donationHistory.push({
       donationDate: new Date(),
       facility: req.user.id,
       donatedTo: "blood-bank",
       bloodGroup: donationRequest.bloodGroup,
-      units,
+      units: units || 1
     });
+    
+    // Boost trust score for successful donation (cap at 100)
+    donor.trustScore = Math.min(100, (donor.trustScore || 100) + 5);
     await donor.save();
 
-    // 8️⃣ Mark donation request completed
+    // 3. Finalize Request Status
     donationRequest.status = "completed";
-    donationRequest.completedAt = new Date();
     await donationRequest.save();
 
-    // ✅ 9️⃣ Send Thank You email to donor
-    try {
-      const bloodBank = await Facility.findById(req.user.id);
-      await mailSender(
-        donor.email,
-        "Thank you for your donation - Blood Donation System",
-        donationCompletedTemplate(
-          donor.fullName,
-          bloodBank.name,
-          donationRequest.bloodGroup,
-          units,
-          "blood-bank"
-        )
-      );
-    } catch (emailError) {
-      console.error("Donation completed email failed:", emailError.message);
+    await sendNotification(
+      donor._id,
+      "Donor",
+      "Donation Successful! 🩸",
+      "Thank you for your donation. Your blood has been added to our stock to save lives.",
+      "/donor/donation-history"
+    );
+
+    return res.status(200).json({ success: true, message: "Donation completed. Stock and Donor profile updated." });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ✅ Updated: Mark No-Show (Penalty Case)
+exports.markNoShow = async (req, res) => {
+  try {
+    const donationRequest = await ProactiveDonation.findById(req.params.id);
+    if (!donationRequest || donationRequest.status !== "confirmed") {
+      return res.status(400).json({ success: false, message: "Only confirmed appointments can be marked as No-Show." });
     }
 
-    return res.status(200).json({
-      success: true,
-      message: "Donation completed successfully. Blood added to inventory.",
-      donationRequest,
-    });
+    donationRequest.status = "no-show";
+    await donationRequest.save();
 
+    const donor = await Donor.findById(donationRequest.donorId);
+
+    // Penalty: drop trust score and apply temporary lock window.
+    donor.trustScore = Math.max(0, (donor.trustScore || 100) - 15);
+
+    const now = new Date();
+    const temporaryPenaltyDays = 7;
+    const severePenaltyDays = 30;
+    const lockDays = donor.trustScore < 40 ? severePenaltyDays : temporaryPenaltyDays;
+    donor.penaltyUntil = new Date(now.getTime() + lockDays * 24 * 60 * 60 * 1000);
+
+    // Re-enable future donation flow after penalty period.
+    donor.eligibleToDonate = true; 
+
+    await donor.save();
+
+    await sendNotification(
+      donor._id,
+      "Donor",
+      "Missed Appointment ⚠️",
+      `You missed your scheduled donation. Your trust score has been reduced and your account is restricted until ${donor.penaltyUntil.toDateString()}.`,
+      "/donor/my-requests"
+    );
+
+    return res.status(200).json({ success: true, message: "No-Show recorded. Trust score penalized." });
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Failed to complete donation",
-      error: error.message,
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 // ─────────────────────────────────
@@ -671,7 +631,6 @@ exports.updateInventory = async (req, res) => {
   try {
     const { bloodGroup, units, action, source, reason, donorPhone } = req.body;
 
-    // 1️⃣ Validate required fields
     if (!bloodGroup || !units || !action) {
       return res.status(400).json({
         success: false,
@@ -679,7 +638,6 @@ exports.updateInventory = async (req, res) => {
       });
     }
 
-    // 2️⃣ Validate action
     if (!["add", "remove"].includes(action)) {
       return res.status(400).json({
         success: false,
@@ -687,7 +645,6 @@ exports.updateInventory = async (req, res) => {
       });
     }
 
-    // 3️⃣ Validate blood group
     const validBloodGroups = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
     if (!validBloodGroups.includes(bloodGroup)) {
       return res.status(400).json({
@@ -696,7 +653,6 @@ exports.updateInventory = async (req, res) => {
       });
     }
 
-    // 4️⃣ Reason required for remove
     if (action === "remove" && !reason) {
       return res.status(400).json({
         success: false,
@@ -705,7 +661,6 @@ exports.updateInventory = async (req, res) => {
     }
 
     if (action === "add") {
-      // 5️⃣ Check if walk-in donor exists
       let donorId = null;
       if (donorPhone) {
         const donor = await Donor.findOne({ phone: donorPhone });
@@ -732,7 +687,6 @@ exports.updateInventory = async (req, res) => {
         }
       }
 
-      // 6️⃣ Add to inventory
       await BloodStock.create({
         bloodBankId: req.user.id,
         donorId,
@@ -742,7 +696,6 @@ exports.updateInventory = async (req, res) => {
         status: "available",
       });
 
-      // 7️⃣ Create transaction history
       await TransactionHistory.create({
         bloodBankId: req.user.id,
         transactionType: "stock-in",
@@ -759,7 +712,6 @@ exports.updateInventory = async (req, res) => {
       });
 
     } else if (action === "remove") {
-      // 8️⃣ Check enough stock available
       const availableStock = await BloodStock.find({
         bloodBankId: req.user.id,
         bloodGroup,
@@ -778,15 +730,12 @@ exports.updateInventory = async (req, res) => {
         });
       }
 
-      // 9️⃣ Remove using FEFO
-      // ✅ Use updateOne to bypass min unit validation
       let unitsToRemove = units;
       for (const batch of availableStock) {
         if (unitsToRemove <= 0) break;
 
         if (batch.units <= unitsToRemove) {
           unitsToRemove -= batch.units;
-          // ✅ updateOne bypasses mongoose min validation
           await BloodStock.updateOne(
             { _id: batch._id },
             {
@@ -802,7 +751,6 @@ exports.updateInventory = async (req, res) => {
         }
       }
 
-      // 🔟 Create transaction history
       await TransactionHistory.create({
         bloodBankId: req.user.id,
         transactionType: "stock-out",
@@ -827,162 +775,6 @@ exports.updateInventory = async (req, res) => {
     });
   }
 };
-// exports.updateInventory = async (req, res) => {
-//   try {
-//     const { bloodGroup, units, action, source, reason, donorPhone } = req.body;
-
-//     // 1️⃣ Validate required fields
-//     if (!bloodGroup || !units || !action) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Please provide bloodGroup, units and action",
-//       });
-//     }
-
-//     // 2️⃣ Validate action
-//     if (!["add", "remove"].includes(action)) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Action must be add or remove",
-//       });
-//     }
-
-//     // 3️⃣ Validate blood group
-//     const validBloodGroups = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
-//     if (!validBloodGroups.includes(bloodGroup)) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Invalid blood group",
-//       });
-//     }
-
-//     // 4️⃣ Reason required for remove
-//     if (action === "remove" && !reason) {
-//       return res.status(400).json({
-//         success: false,
-//         message: "Please provide reason for removal",
-//       });
-//     }
-
-//     if (action === "add") {
-//       // 5️⃣ Check if walk-in donor exists in system
-//       let donorId = null;
-//       if (donorPhone) {
-//         const donor = await Donor.findOne({ phone: donorPhone });
-
-//         // ✅ Walk-in donor can only donate 1 unit at a time
-//         if (donor && units > 1) {
-//           return res.status(400).json({
-//             success: false,
-//             message: "A single walk-in donor can only donate 1 unit at a time",
-//           });
-//         }
-
-//         if (donor) {
-//           donorId = donor._id;
-//           donor.lastDonationDate = new Date();
-//           // ✅ Keep false — donor must wait 90 days
-//           // Auto resets when donor tries to donate after 90 days
-//           donor.eligibleToDonate = false;
-//           donor.donationHistory.push({
-//             donationDate: new Date(),
-//             facility: req.user.id,
-//             donatedTo: "blood-bank",
-//             bloodGroup,
-//             units,
-//           });
-//           await donor.save();
-//         }
-//       }
-
-//       // 6️⃣ Add to inventory
-//       await BloodStock.create({
-//         bloodBankId: req.user.id,
-//         donorId,
-//         bloodGroup,
-//         units,
-//         source: source || "manual",
-//         status: "available",
-//       });
-
-//       // 7️⃣ Create transaction history
-//       await TransactionHistory.create({
-//         bloodBankId: req.user.id,
-//         transactionType: "stock-in",
-//         bloodGroup,
-//         units,
-//         source: source || "manual",
-//         donorId,
-//         reason: reason || "Manual stock addition",
-//       });
-
-//       return res.status(201).json({
-//         success: true,
-//         message: `${units} units of ${bloodGroup} added successfully`,
-//       });
-
-//     } else if (action === "remove") {
-//       // 8️⃣ Check enough stock available
-//       const availableStock = await BloodStock.find({
-//         bloodBankId: req.user.id,
-//         bloodGroup,
-//         status: "available",
-//       }).sort({ expiryDate: 1 }); // FEFO
-
-//       const totalAvailable = availableStock.reduce(
-//         (sum, batch) => sum + batch.units,
-//         0,
-//       );
-
-//       if (totalAvailable < units) {
-//         return res.status(400).json({
-//           success: false,
-//           message: `Not enough stock. Available: ${totalAvailable} units`,
-//         });
-//       }
-
-//       // 9️⃣ Remove using FEFO logic
-//       let unitsToRemove = units;
-//       for (const batch of availableStock) {
-//         if (unitsToRemove <= 0) break;
-
-//         if (batch.units <= unitsToRemove) {
-//           unitsToRemove -= batch.units;
-//           batch.status = "used";
-//           batch.removalReason = reason;
-//           await batch.save();
-//         } else {
-//           batch.units -= unitsToRemove;
-//           batch.removalReason = reason;
-//           unitsToRemove = 0;
-//           await batch.save();
-//         }
-//       }
-
-//       // 🔟 Create transaction history
-//       await TransactionHistory.create({
-//         bloodBankId: req.user.id,
-//         transactionType: "stock-out",
-//         bloodGroup,
-//         units,
-//         source: "manual",
-//         reason,
-//       });
-
-//       return res.status(200).json({
-//         success: true,
-//         message: `${units} units of ${bloodGroup} removed successfully`,
-//         reason,
-//       });
-//     }
-//   } catch (error) {
-//     return res.status(500).json({
-//       success: false,
-//       message: "Failed to update inventory",
-//       error: error.message,
-//     });
-//   }
-// };
 
 // ─────────────────────────────────
 // @route  PUT /api/bloodbank/camp/:campId/attendance/:donorId
@@ -990,13 +782,11 @@ exports.updateInventory = async (req, res) => {
 // ─────────────────────────────────
 exports.markDonorAttendance = async (req, res) => {
   try {
-    // 1️⃣ Auto update camp statuses first
     await updateCampStatuses();
 
     const { bloodGroup } = req.body;
-    const units = 1; // Always 1 unit per donation
+    const units = 1;
 
-    // 2️⃣ Validate input
     if (!bloodGroup) {
       return res.status(400).json({
         success: false,
@@ -1004,7 +794,6 @@ exports.markDonorAttendance = async (req, res) => {
       });
     }
 
-    // 3️⃣ Validate blood group
     const validBloodGroups = ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"];
     if (!validBloodGroups.includes(bloodGroup)) {
       return res.status(400).json({
@@ -1013,7 +802,6 @@ exports.markDonorAttendance = async (req, res) => {
       });
     }
 
-    // 4️⃣ Find camp
     const camp = await Camp.findById(req.params.campId);
     if (!camp) {
       return res.status(404).json({
@@ -1022,7 +810,6 @@ exports.markDonorAttendance = async (req, res) => {
       });
     }
 
-    // 5️⃣ Check camp belongs to this blood bank
     if (camp.bloodBankId.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -1030,7 +817,6 @@ exports.markDonorAttendance = async (req, res) => {
       });
     }
 
-    // 6️⃣ Check camp is ongoing
     if (camp.status !== "ongoing") {
       return res.status(400).json({
         success: false,
@@ -1038,7 +824,6 @@ exports.markDonorAttendance = async (req, res) => {
       });
     }
 
-    // 7️⃣ Find donor in registered list
     const donorIndex = camp.registeredDonors.findIndex(
       (d) => d.donorId.toString() === req.params.donorId,
     );
@@ -1049,7 +834,6 @@ exports.markDonorAttendance = async (req, res) => {
       });
     }
 
-    // 8️⃣ Check not already marked
     if (camp.registeredDonors[donorIndex].donationStatus === "donated") {
       return res.status(400).json({
         success: false,
@@ -1057,7 +841,6 @@ exports.markDonorAttendance = async (req, res) => {
       });
     }
 
-    // 9️⃣ Mark donor as donated
     camp.registeredDonors[donorIndex].donationStatus = "donated";
     camp.registeredDonors[donorIndex].bloodGroup = bloodGroup;
     camp.registeredDonors[donorIndex].units = units;
@@ -1083,13 +866,6 @@ exports.markDonorAttendance = async (req, res) => {
 };
 
 // ─────────────────────────────────
-// @route  PUT /api/bloodbank/camp/:campId/complete
-// @access Blood Bank only
-// ─────────────────────────────────
-
-
-
-// ─────────────────────────────────
 // @route  GET /api/bloodbank/blood-requests
 // @access Blood Bank only
 // ─────────────────────────────────
@@ -1105,7 +881,6 @@ exports.getIncomingBloodRequests = async (req, res) => {
       });
     }
 
-    // ✅ Banks see both "bloodbank" AND "both" stage requests
     const requests = await BloodRequest.find({
       status: "active",
       stage: { $in: ["bloodbank", "both"] },
@@ -1157,6 +932,7 @@ exports.getIncomingBloodRequests = async (req, res) => {
     });
   }
 };
+
 // ─────────────────────────────────
 // @route  PUT /api/bloodbank/blood-requests/:id/respond
 // @access Blood Bank only
@@ -1198,7 +974,6 @@ exports.respondToBloodRequest = async (req, res) => {
       });
     }
 
-    // ✅ Banks can respond in both "bloodbank" and "both" stage
     if (!["bloodbank", "both"].includes(request.stage)) {
       return res.status(400).json({
         success: false,
@@ -1207,11 +982,13 @@ exports.respondToBloodRequest = async (req, res) => {
     }
 
     if (action === "decline") {
+      let shouldNotifyDonors = false;
+
       if (!request.declinedByBloodBanks.includes(req.user.id)) {
         request.declinedByBloodBanks.push(req.user.id);
       }
 
-      // ✅ Check if ALL nearby banks declined → move to "both" immediately
+      // Find all approved nearby blood banks
       const nearbyBanks = await Facility.find({
         facilityType: "blood-bank",
         status: "approved",
@@ -1227,24 +1004,33 @@ exports.respondToBloodRequest = async (req, res) => {
         },
       });
 
+      // ✅ Logic to check if all banks have declined and notify donors
       if (nearbyBanks.length > 0 && request.units === 1) {
         const nearbyBankIds = nearbyBanks.map((b) => b._id.toString());
         const declinedIds = request.declinedByBloodBanks.map((id) => id.toString());
         const allDeclined = nearbyBankIds.every((id) => declinedIds.includes(id));
 
         if (allDeclined && request.stage === "bloodbank") {
-          // ✅ All banks declined → open to donors immediately
           request.stage = "both";
           request.stageUpdatedAt = new Date();
+          shouldNotifyDonors = true;
         }
       }
 
       await request.save();
 
-      return res.status(200).json({
+      res.status(200).json({
         success: true,
         message: "Blood request declined",
       });
+
+      if (shouldNotifyDonors) {
+        notifyNearbyDonorsForEscalatedRequest(request._id).catch((error) => {
+          console.error("Donor escalation dispatch failed:", error.message);
+        });
+      }
+
+      return;
     }
 
     if (action === "accept") {
@@ -1265,7 +1051,6 @@ exports.respondToBloodRequest = async (req, res) => {
         });
       }
 
-      // ✅ Deduct stock using FEFO with updateOne
       let unitsToDeduct = request.units;
       for (const batch of availableStock) {
         if (unitsToDeduct <= 0) break;
@@ -1301,28 +1086,9 @@ exports.respondToBloodRequest = async (req, res) => {
       };
       await request.save();
 
-      try {
-        const bloodBank = await Facility.findById(req.user.id);
-        if (request.hospitalId?.email && bloodBank) {
-          await mailSender(
-            request.hospitalId.email,
-            "Your blood request has been accepted - Blood Donation System",
-            bloodRequestAcceptedTemplate(
-              request.hospitalId.name,
-              bloodBank.name,
-              "bloodbank",
-              request.bloodGroup,
-              request.units,
-              bloodBank.phone,
-              bloodBank.address
-            )
-          );
-        }
-      } catch (emailError) {
-        console.error("Hospital notification email failed:", emailError.message);
-      }
+      const bloodBank = await Facility.findById(req.user.id);
 
-      return res.status(200).json({
+      const responsePayload = {
         success: true,
         message: "Blood request accepted. Blood packed and ready for dispatch.",
         request: {
@@ -1336,7 +1102,15 @@ exports.respondToBloodRequest = async (req, res) => {
             address: request.hospitalId?.address,
           },
         },
+      };
+
+      res.status(200).json(responsePayload);
+
+      notifyHospitalRequestAccepted(request, bloodBank).catch((error) => {
+        console.error("Hospital acceptance notification dispatch failed:", error.message);
       });
+
+      return;
     }
 
   } catch (error) {
@@ -1354,7 +1128,6 @@ exports.respondToBloodRequest = async (req, res) => {
 // ─────────────────────────────────
 exports.completeBloodRequest = async (req, res) => {
   try {
-    // 1️⃣ Find request
     const request = await BloodRequest.findById(req.params.id).populate(
       "hospitalId",
       "name email phone address",
@@ -1366,7 +1139,6 @@ exports.completeBloodRequest = async (req, res) => {
       });
     }
 
-    // 2️⃣ Check request belongs to this blood bank
     if (request.respondedBy.responderId.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -1374,7 +1146,6 @@ exports.completeBloodRequest = async (req, res) => {
       });
     }
 
-    // 3️⃣ Check request is confirmed
     if (request.status !== "confirmed") {
       return res.status(400).json({
         success: false,
@@ -1382,10 +1153,23 @@ exports.completeBloodRequest = async (req, res) => {
       });
     }
 
-    // 4️⃣ Mark request as completed
     request.status = "completed";
     request.completedAt = new Date();
     await request.save();
+
+    // ✅ NEW: In-App Notification to Hospital
+    try {
+      const bloodBank = await Facility.findById(req.user.id);
+      await sendNotification(
+        request.hospitalId._id,
+        "Facility",
+        "Blood Dispatched 🚐",
+        `${bloodBank.name} has marked your order for ${request.units} units of ${request.bloodGroup} as complete and dispatched.`,
+        "/hospital/my-requests"
+      );
+    } catch (err) {
+      console.error("Notification failed", err);
+    }
 
     return res.status(200).json({
       success: true,
@@ -1429,15 +1213,9 @@ exports.createCamp = async (req, res) => {
       capacity,
     } = req.body;
 
-    // 1️⃣ Validate required fields
     if (
-      !name ||
-      !address ||
-      !location ||
-      !campDate ||
-      !startTime ||
-      !endTime ||
-      !capacity
+      !name || !address || !location || !campDate ||
+      !startTime || !endTime || !capacity
     ) {
       return res.status(400).json({
         success: false,
@@ -1445,8 +1223,6 @@ exports.createCamp = async (req, res) => {
       });
     }
 
-    // 2️⃣ Validate camp date
-    // Cannot create camp in past
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (new Date(campDate) < today) {
@@ -1456,7 +1232,6 @@ exports.createCamp = async (req, res) => {
       });
     }
 
-    // 3️⃣ Validate time format
     const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
     if (!timeRegex.test(startTime) || !timeRegex.test(endTime)) {
       return res.status(400).json({
@@ -1465,7 +1240,6 @@ exports.createCamp = async (req, res) => {
       });
     }
 
-    // 4️⃣ Validate endTime after startTime
     if (endTime <= startTime) {
       return res.status(400).json({
         success: false,
@@ -1473,7 +1247,6 @@ exports.createCamp = async (req, res) => {
       });
     }
 
-    // 5️⃣ Create camp
     const camp = await Camp.create({
       bloodBankId: req.user.id,
       name,
@@ -1486,6 +1259,35 @@ exports.createCamp = async (req, res) => {
       capacity,
       status: "upcoming",
     });
+
+    // ✅ NEW: Automatically notify donors within 10km radius
+    try {
+      const bloodBank = await Facility.findById(req.user.id);
+      const nearbyDonors = await Donor.find({
+        location: {
+          $near: {
+            $geometry: location,
+            $maxDistance: 10000 // 10km radius
+          }
+        },
+        isActive: true
+      }).select('_id');
+
+      // Send to all nearby donors asynchronously so it doesn't block the response
+      Promise.all(
+        nearbyDonors.map(donor =>
+          sendNotification(
+            donor._id,
+            "Donor",
+            "New Camp Near You ⛺",
+            `${bloodBank.name} is hosting a blood donation camp in your area on ${new Date(campDate).toLocaleDateString()}. Register now to save lives!`,
+            `/donor/nearby-camps`
+          )
+        )
+      ).catch(err => console.error("Camp background notification error:", err));
+    } catch (notifError) {
+      console.error("Failed to find nearby donors for notification:", notifError);
+    }
 
     return res.status(201).json({
       success: true,
@@ -1509,23 +1311,18 @@ exports.getMyCamps = async (req, res) => {
   try {
     const { status } = req.query;
 
-    // 1️⃣ Auto update camp statuses first
     await updateCampStatuses();
 
-    // 2️⃣ Build filter
     const filter = {
       bloodBankId: req.user.id,
     };
 
-    // 3️⃣ Filter by status if provided
     if (status) {
       filter.status = status;
     }
 
-    // 4️⃣ Get camps with available seats
     const camps = await Camp.find(filter).sort({ campDate: -1 });
 
-    // 5️⃣ Add availableSeats to each camp
     const campsWithSeats = camps.map((camp) => ({
       ...camp.toObject(),
       availableSeats: camp.capacity - camp.registeredDonors.length,
@@ -1552,7 +1349,6 @@ exports.getMyCamps = async (req, res) => {
 // ─────────────────────────────────
 exports.getCampRegisteredDonors = async (req, res) => {
   try {
-    // 1️⃣ Find camp
     const camp = await Camp.findById(req.params.campId).populate(
       "registeredDonors.donorId",
       "fullName phone bloodGroup age weight",
@@ -1565,7 +1361,6 @@ exports.getCampRegisteredDonors = async (req, res) => {
       });
     }
 
-    // 2️⃣ Check camp belongs to this blood bank
     if (camp.bloodBankId.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -1573,7 +1368,6 @@ exports.getCampRegisteredDonors = async (req, res) => {
       });
     }
 
-    // 3️⃣ Separate donors by status
     const registered = camp.registeredDonors.filter(
       (d) => d.donationStatus === "registered",
     );
@@ -1621,7 +1415,6 @@ exports.updateCampStatus = async (req, res) => {
   try {
     const { status } = req.body;
 
-    // 1️⃣ Only allow cancellation manually
     if (status !== "cancelled") {
       return res.status(400).json({
         success: false,
@@ -1630,7 +1423,6 @@ exports.updateCampStatus = async (req, res) => {
       });
     }
 
-    // 2️⃣ Find camp
     const camp = await Camp.findById(req.params.campId);
     if (!camp) {
       return res.status(404).json({
@@ -1639,7 +1431,6 @@ exports.updateCampStatus = async (req, res) => {
       });
     }
 
-    // 3️⃣ Check camp belongs to this blood bank
     if (camp.bloodBankId.toString() !== req.user.id) {
       return res.status(403).json({
         success: false,
@@ -1647,7 +1438,6 @@ exports.updateCampStatus = async (req, res) => {
       });
     }
 
-    // 4️⃣ Check camp not already completed
     if (camp.status === "completed") {
       return res.status(400).json({
         success: false,
@@ -1655,7 +1445,6 @@ exports.updateCampStatus = async (req, res) => {
       });
     }
 
-    // 5️⃣ Check camp not already cancelled
     if (camp.status === "cancelled") {
       return res.status(400).json({
         success: false,
@@ -1663,7 +1452,6 @@ exports.updateCampStatus = async (req, res) => {
       });
     }
 
-    // 6️⃣ Cancel camp
     camp.status = "cancelled";
     await camp.save();
 
@@ -1689,22 +1477,18 @@ exports.getTransactionHistory = async (req, res) => {
   try {
     const { type, bloodGroup, startDate, endDate } = req.query;
 
-    // 1️⃣ Build filter
     const filter = {
       bloodBankId: req.user.id,
     };
 
-    // 2️⃣ Filter by transaction type if provided
     if (type) {
       filter.transactionType = type;
     }
 
-    // 3️⃣ Filter by blood group if provided
     if (bloodGroup) {
       filter.bloodGroup = bloodGroup;
     }
 
-    // 4️⃣ Filter by date range if provided
     if (startDate && endDate) {
       filter.createdAt = {
         $gte: new Date(startDate),
@@ -1712,14 +1496,12 @@ exports.getTransactionHistory = async (req, res) => {
       };
     }
 
-    // 5️⃣ Get transactions
     const transactions = await TransactionHistory.find(filter)
       .populate("donorId", "fullName phone bloodGroup")
       .populate("hospitalId", "name phone address")
       .populate("campId", "name startDate address")
       .sort({ createdAt: -1 });
 
-    // 6️⃣ Calculate summary
     const stockIn = transactions
       .filter((t) => t.transactionType === "stock-in")
       .reduce((sum, t) => sum + t.units, 0);
@@ -1770,6 +1552,88 @@ exports.getAcceptedBloodRequests = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Failed to fetch accepted requests",
+      error: error.message,
+    });
+  }
+};
+
+// ─────────────────────────────────
+// @route  GET /api/bloodbank/hospital-locations
+// @access Blood Bank only
+// ─────────────────────────────────
+exports.getHospitalLocations = async (req, res) => {
+  try {
+    const bloodBank = await Facility.findById(req.user.id);
+    if (!bloodBank) {
+      return res.status(404).json({ success: false, message: "Blood bank not found" });
+    }
+
+    if (!bloodBank.location || !bloodBank.location.coordinates || bloodBank.location.coordinates[0] === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Blood bank location not set. Please update profile first.",
+      });
+    }
+
+    // 1. Get hospitals with active blood requests near this bank
+    const activeRequests = await BloodRequest.find({
+      status: "active",
+      stage: { $in: ["bloodbank", "both"] },
+      deadline: { $gt: new Date() },
+      declinedByBloodBanks: { $nin: [req.user.id] },
+      location: {
+        $near: {
+          $geometry: {
+            type: "Point",
+            coordinates: bloodBank.location.coordinates,
+          },
+          $maxDistance: 50000,
+        },
+      },
+    }).populate("hospitalId", "name phone address location");
+
+    // Format hospital data with request details
+    const hospitals = activeRequests.map((req) => ({
+      requestId: req._id,
+      hospital: req.hospitalId,
+      bloodGroup: req.bloodGroup,
+      units: req.units,
+      urgencyLevel: req.urgencyLevel,
+      deadline: req.deadline,
+      location: req.location,
+    }));
+
+    // 2. Get proactive donors with pending/confirmed requests at this bank
+    const donorRequests = await ProactiveDonation.find({
+      bloodBankId: req.user.id,
+      status: { $in: ["pending", "confirmed"] },
+    }).populate("donorId", "fullName phone bloodGroup location");
+
+    const donors = donorRequests
+      .filter((d) => d.donorId?.location?.coordinates?.[0] !== 0)
+      .map((d) => ({
+        requestId: d._id,
+        donor: {
+          _id: d.donorId._id,
+          fullName: d.donorId.fullName,
+          phone: d.donorId.phone,
+          bloodGroup: d.donorId.bloodGroup,
+          location: d.donorId.location,
+        },
+        status: d.status,
+      }));
+
+    return res.status(200).json({
+      success: true,
+      message: "Map data fetched",
+      hospitals,
+      donors,
+      bankLocation: bloodBank.location,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch map data",
       error: error.message,
     });
   }

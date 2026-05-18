@@ -141,32 +141,34 @@ const Profile = () => {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Blood Bank Profile</h1>
-        <p className="text-gray-500 mt-1">Manage your blood bank information</p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-200">Blood Bank Profile</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1">Manage your blood bank information</p>
       </div>
 
       {/* Profile Card */}
-      <div className="bg-white rounded-2xl shadow p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow p-6">
 
         {/* Top Section */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <Avatar name={profile?.name} size="xl" />
             <div>
-              <h2 className="text-xl font-bold text-gray-800">{profile?.name}</h2>
+              <h2 className="text-xl font-bold text-gray-800 dark:text-gray-200">{profile?.name}</h2>
               <div className="flex items-center gap-2 mt-1">
                 <MdEmail className="text-gray-400 text-sm" />
-                <p className="text-gray-500 text-sm">{profile?.email}</p>
+                <p className="text-gray-500 dark:text-gray-400 text-sm">{profile?.email}</p>
               </div>
               <div className="flex items-center gap-2 mt-2 flex-wrap">
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-600 text-xs rounded-full font-semibold">
+                <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs rounded-full font-semibold">
                   Blood Bank
                 </span>
-                <span className="px-2 py-0.5 bg-green-100 text-green-600 text-xs rounded-full font-semibold">
+                <span className="px-2 py-0.5 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-xs rounded-full font-semibold">
                   {profile?.facilityCategory}
                 </span>
                 <span className={`px-2 py-0.5 text-xs rounded-full font-semibold ${
-                  profile?.is24x7 ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-500"
+                  profile?.is24x7
+                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                    : "bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
                 }`}>
                   {profile?.is24x7 ? "24x7 Open" : "Limited Hours"}
                 </span>
@@ -178,7 +180,7 @@ const Profile = () => {
           <div className="flex gap-2">
             {editing ? (
               <>
-                <button onClick={() => setEditing(false)} className="flex items-center gap-2 px-4 py-2 border-2 border-gray-200 text-gray-600 font-semibold text-sm rounded-xl hover:bg-gray-50 transition-all">
+                <button onClick={() => setEditing(false)} className="flex items-center gap-2 px-4 py-2 border-2 border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 font-semibold text-sm rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-all">
                   <MdClose />Cancel
                 </button>
                 <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white font-semibold text-sm rounded-xl transition-all">
@@ -200,14 +202,14 @@ const Profile = () => {
             <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">
               <FaTint className="inline mr-1" />Blood Bank Name
             </label>
-            <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 px-4 py-2.5 bg-gray-50 dark:bg-gray-900 rounded-xl">
               {profile?.name} (cannot be changed)
             </p>
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">Registration Number</label>
-            <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">
+            <p className="text-sm font-medium text-gray-800 dark:text-gray-200 px-4 py-2.5 bg-gray-50 dark:bg-gray-900 rounded-xl">
               {profile?.registrationNumber} (cannot be changed)
             </p>
           </div>
@@ -217,18 +219,18 @@ const Profile = () => {
               <MdPhone className="inline mr-1" />Phone
             </label>
             {editing ? (
-              <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
+              <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">{profile?.phone}</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 px-4 py-2.5 bg-gray-50 dark:bg-gray-900 rounded-xl">{profile?.phone}</p>
             )}
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">Emergency Contact</label>
             {editing ? (
-              <input type="text" name="emergencyContact" value={formData.emergencyContact} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
+              <input type="text" name="emergencyContact" value={formData.emergencyContact} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">{profile?.emergencyContact}</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 px-4 py-2.5 bg-gray-50 dark:bg-gray-900 rounded-xl">{profile?.emergencyContact}</p>
             )}
           </div>
 
@@ -237,27 +239,27 @@ const Profile = () => {
               <MdLocationOn className="inline mr-1" />City
             </label>
             {editing ? (
-              <input type="text" name="city" value={formData.address.city} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
+              <input type="text" name="city" value={formData.address.city} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">{profile?.address?.city}</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 px-4 py-2.5 bg-gray-50 dark:bg-gray-900 rounded-xl">{profile?.address?.city}</p>
             )}
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">State</label>
             {editing ? (
-              <input type="text" name="state" value={formData.address.state} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
+              <input type="text" name="state" value={formData.address.state} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">{profile?.address?.state}</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 px-4 py-2.5 bg-gray-50 dark:bg-gray-900 rounded-xl">{profile?.address?.state}</p>
             )}
           </div>
 
           <div>
             <label className="block text-xs font-semibold text-gray-400 uppercase mb-1">Pincode</label>
             {editing ? (
-              <input type="text" name="pincode" value={formData.address.pincode} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
+              <input type="text" name="pincode" value={formData.address.pincode} onChange={handleChange} className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm" />
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">{profile?.address?.pincode}</p>
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 px-4 py-2.5 bg-gray-50 dark:bg-gray-900 rounded-xl">{profile?.address?.pincode}</p>
             )}
           </div>
 
@@ -268,17 +270,17 @@ const Profile = () => {
             {editing ? (
               <div className="space-y-2">
                 <div className="flex gap-2 items-center">
-                  <input type="time" name="open" value={formData.operatingHours.open} onChange={handleChange} disabled={formData.is24x7} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm disabled:bg-gray-100" />
+                  <input type="time" name="open" value={formData.operatingHours.open} onChange={handleChange} disabled={formData.is24x7} className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm disabled:bg-gray-100 dark:bg-gray-800" />
                   <span className="text-gray-400 text-sm">to</span>
-                  <input type="time" name="close" value={formData.operatingHours.close} onChange={handleChange} disabled={formData.is24x7} className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm disabled:bg-gray-100" />
+                  <input type="time" name="close" value={formData.operatingHours.close} onChange={handleChange} disabled={formData.is24x7} className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-red-500 text-sm disabled:bg-gray-100 dark:bg-gray-800" />
                 </div>
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" name="is24x7" checked={formData.is24x7} onChange={handleChange} className="w-4 h-4 text-red-600 rounded" />
-                  <span className="text-sm text-gray-600">Open 24x7</span>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">Open 24x7</span>
                 </label>
               </div>
             ) : (
-              <p className="text-sm font-medium text-gray-800 px-4 py-2.5 bg-gray-50 rounded-xl">
+              <p className="text-sm font-medium text-gray-800 dark:text-gray-200 px-4 py-2.5 bg-gray-50 dark:bg-gray-900 rounded-xl">
                 {profile?.is24x7 ? "Open 24x7" : `${profile?.operatingHours?.open} - ${profile?.operatingHours?.close}`}
               </p>
             )}
@@ -288,11 +290,11 @@ const Profile = () => {
       </div>
 
       {/* ✅ Location Card */}
-      <div className="bg-white rounded-2xl shadow p-6">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow p-6">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-gray-800">Blood Bank Location</h3>
-            <p className="text-sm text-gray-500 mt-1">
+            <h3 className="font-bold text-gray-800 dark:text-gray-200">Blood Bank Location</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Update your location so hospitals can find you within range
             </p>
             {profile?.location?.coordinates?.[0] !== 0 ? (

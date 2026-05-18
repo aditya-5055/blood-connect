@@ -6,6 +6,9 @@ const Facility = require("../models/facilityModel");
 
 dotenv.config();
 
+// ─────────────────────────────────────────────────────────
+// General Authentication Middleware
+// ─────────────────────────────────────────────────────────
 exports.auth = async (req, res, next) => {
   try {
     const authHeader = req.header("Authorization");
@@ -25,7 +28,8 @@ exports.auth = async (req, res, next) => {
 
     try {
       const decode = jwt.verify(token, process.env.JWT_SECRET);
-      req.user = decode;
+      // ✅ This is key: ensures id and role are available in all following controllers
+      req.user = decode; 
     } catch (error) {
       return res.status(401).json({
         success: false,
@@ -41,10 +45,14 @@ exports.auth = async (req, res, next) => {
   }
 };
 
+// ─────────────────────────────────────────────────────────
+// Role-Based Authorization Middlewares
+// ─────────────────────────────────────────────────────────
+
 exports.isAdmin = async (req, res, next) => {
   try {
     const userDetails = await Admin.findById(req.user.id);
-    if (!userDetails || userDetails.role !== "admin") {
+    if (!userDetails || req.user.role !== "admin") {
       return res.status(401).json({
         success: false,
         message: "This is a protected route for Admin only",
@@ -52,15 +60,13 @@ exports.isAdmin = async (req, res, next) => {
     }
     next();
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "User role can't be verified",
-    });
+    return res.status(500).json({ success: false, message: "User role can't be verified" });
   }
 };
 
 exports.isDonor = async (req, res, next) => {
   try {
+    // Ensure we are checking the donor model
     const userDetails = await Donor.findById(req.user.id);
     if (!userDetails || req.user.role !== "donor") {
       return res.status(401).json({
@@ -70,34 +76,33 @@ exports.isDonor = async (req, res, next) => {
     }
     next();
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "User role can't be verified",
-    });
+    return res.status(500).json({ success: false, message: "User role can't be verified" });
   }
 };
 
 exports.isHospital = async (req, res, next) => {
   try {
     const userDetails = await Facility.findById(req.user.id);
-    if (!userDetails || req.user.role !== "hospital") {
+    
+    // ✅ Check case-insensitive role to be safe
+    if (!userDetails || req.user.role.toLowerCase() !== "hospital") {
       return res.status(401).json({
         success: false,
         message: "This is a protected route for Hospitals only",
       });
     }
+
     if (userDetails.status !== "approved") {
-      return res.status(401).json({
-        success: false,
-        message: "Your account is not approved yet",
-      });
+      return res.status(403).json({ success: false, message: "Your account is not approved yet" });
     }
-    next();
+
+    // ✅ Crucial: Ensure next is a function before calling
+    if (typeof next === 'function') {
+      next();
+    }
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "User role can't be verified",
-    });
+    console.error("Middleware Error:", error);
+    return res.status(500).json({ success: false, message: "User role can't be verified" });
   }
 };
 
@@ -111,16 +116,10 @@ exports.isBloodBank = async (req, res, next) => {
       });
     }
     if (userDetails.status !== "approved") {
-      return res.status(401).json({
-        success: false,
-        message: "Your account is not approved yet",
-      });
+      return res.status(403).json({ success: false, message: "Your account is not approved yet" });
     }
     next();
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "User role can't be verified",
-    });
+    return res.status(500).json({ success: false, message: "User role can't be verified" });
   }
 };

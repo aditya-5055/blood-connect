@@ -1,14 +1,12 @@
-
 import axios from "axios";
 import { BASE_URL } from "../utils/constants";
-import { store } from "../store"; // import your redux store
-import { logout } from "../slices/authSlice"; // adjust path if needed
+import { store } from "../store"; 
+import { logout } from "../slices/authSlice"; 
 
 const axiosInstance = axios.create({
   baseURL: BASE_URL,
 });
 
-// ✅ Request interceptor — attach token
 axiosInstance.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
@@ -20,25 +18,27 @@ axiosInstance.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// ✅ Response interceptor — handle expired/invalid token
 axiosInstance.interceptors.response.use(
-  (response) => response, // if response is fine, just return it
+  (response) => response,
   (error) => {
-    if (error.response && error.response.status === 401) {
-      // Token expired or invalid — clear everything and redirect to login
+    const status = error.response?.status;
+    if (status === 401) {
       store.dispatch(logout());
-      window.location.href = "/donor/login"; // adjust your login route if different
+      window.location.href = "/donor/login";
     }
     return Promise.reject(error);
   }
 );
 
+// Updated apiConnector to properly spread headers
 export const apiConnector = (method, url, data, headers, params) => {
   return axiosInstance({
-    method,
-    url,
-    data: data || null,
-    headers: headers || null,
-    params: params || null,
+    method: `${method}`,
+    url: `${url}`,
+    data: data ? data : null,
+    headers: headers ? headers : null,
+    params: params ? params : null,
   });
 };
+
+export default axiosInstance;

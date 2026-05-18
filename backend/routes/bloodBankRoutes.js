@@ -8,6 +8,7 @@ const {
   getDonationRequests,
   processDonationRequest,
   completeDonation,
+  markNoShow,
   markDonorAttendance,
   completeCamp,
   getIncomingBloodRequests,
@@ -19,6 +20,7 @@ const {
   getCampRegisteredDonors,
   updateCampStatus,
   getTransactionHistory,
+  getHospitalLocations,
 } = require("../controllers/bloodBankController");
 const { auth, isBloodBank } = require("../middleware/authMiddleware");
 
@@ -30,12 +32,13 @@ router.put("/update-profile", auth, isBloodBank, updateProfile);
 router.get("/inventory", auth, isBloodBank, getInventory);
 router.post("/inventory/update", auth, isBloodBank, updateInventory);
 
-// Donation request routes
+// Donation request routes (Proactive)
 router.get("/donation-requests", auth, isBloodBank, getDonationRequests);
 router.put("/donation-requests/:id", auth, isBloodBank, processDonationRequest);
 router.put("/complete-donation/:id", auth, isBloodBank, completeDonation);
+router.put("/mark-no-show/:id", auth, isBloodBank, markNoShow);
 
-// ✅ Blood request routes — accepted MUST be before /:id routes
+// Blood request routes (Hospital)
 router.get("/blood-requests/accepted", auth, isBloodBank, getAcceptedBloodRequests);
 router.get("/blood-requests", auth, isBloodBank, getIncomingBloodRequests);
 router.put("/blood-requests/:id/respond", auth, isBloodBank, respondToBloodRequest);
@@ -51,5 +54,8 @@ router.put("/camp/:campId/status", auth, isBloodBank, updateCampStatus);
 
 // Transaction history
 router.get("/transactions", auth, isBloodBank, getTransactionHistory);
+
+// Map endpoint
+router.get("/hospital-locations", auth, isBloodBank, getHospitalLocations);
 
 module.exports = router;

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
+import toast from "react-hot-toast";
 import {
   FaTint, FaSearch, FaMapMarkerAlt, FaCalendarAlt,
   FaClock, FaUsers, FaCheckCircle
@@ -51,9 +52,20 @@ const Camps = () => {
     setRegistering(campId);
     try {
       await apiConnector("POST", DONOR_APIS.REGISTER_FOR_CAMP(campId));
-      setRegisteredCamps((prev) => [...prev, campId]);
+      setRegisteredCamps((prev) => (prev.includes(campId) ? prev : [...prev, campId]));
+      toast.success("Successfully registered for camp");
     } catch (err) {
-      alert(err?.response?.data?.message || "Registration failed. Please try again.");
+      const message = err?.response?.data?.message || "Registration failed. Please try again.";
+      const isAlreadyRegistered = /already\s*registered/i.test(message);
+
+      if (isAlreadyRegistered) {
+        setRegisteredCamps((prev) => (prev.includes(campId) ? prev : [...prev, campId]));
+        toast("You are already registered for this camp", {
+          icon: "ℹ️",
+        });
+      } else {
+        toast.error(message);
+      }
     } finally {
       setRegistering(null);
     }
@@ -71,33 +83,33 @@ const Camps = () => {
 
   const getSpotsColor = (spotsLeft, capacity) => {
     const percent = (spotsLeft / capacity) * 100;
-    if (percent <= 10) return "text-red-600 bg-red-50";
-    if (percent <= 40) return "text-orange-600 bg-orange-50";
-    return "text-green-600 bg-green-50";
+    if (percent <= 10) return "text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-900/30";
+    if (percent <= 40) return "text-orange-700 dark:text-orange-300 bg-orange-100 dark:bg-orange-900/30";
+    return "text-green-700 dark:text-green-300 bg-green-100 dark:bg-green-900/30";
   };
 
   return (
-    <div>
+    <div className="public-page">
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-red-600 to-red-800 text-white py-16 px-4">
+      <section className="public-hero">
         <div className="max-w-3xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 bg-white/20 px-4 py-2 rounded-full text-sm font-medium mb-6">
-            <FaCalendarAlt className="text-white" />
-            Upcoming Blood Donation Camps
+          <div className="public-hero-badge">
+            <FaCalendarAlt className="text-red-600 dark:text-red-300" />
+            Available Blood Donation Camps
           </div>
-          <h1 className="text-3xl md:text-5xl font-bold mb-4 leading-tight">
-            Find a Camp <br />
+          <h1 className="public-hero-title mb-4">
+            Find Blood Donation Camps <br />
             <span className="text-yellow-300">Near You</span>
           </h1>
-          <p className="text-red-100 mb-10 text-base md:text-lg max-w-xl mx-auto">
-            Browse upcoming donation camps in your city. Register in one click and save lives.
+          <p className="public-hero-subtitle text-base md:text-lg max-w-xl">
+            Browse available donation camps in your city. Register in one click and save lives.
           </p>
 
           {/* Search */}
           <form
             onSubmit={handleSearch}
-            className="bg-white rounded-2xl shadow-2xl p-4 text-left flex gap-3"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-3 sm:p-4 text-left flex flex-col sm:flex-row gap-3"
           >
             <div className="flex-1 relative">
               <FaMapMarkerAlt className="absolute left-3 top-1/2 -translate-y-1/2 text-red-400" />
@@ -106,7 +118,7 @@ const Camps = () => {
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
                 placeholder="Search by city e.g. Pune, Mumbai..."
-                className="w-full pl-9 pr-4 py-3 border border-gray-200 rounded-xl text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-red-500"
+                className="w-full pl-9 pr-4 py-3 border border-gray-200 dark:border-gray-700 rounded-xl text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             </div>
             <button
@@ -121,23 +133,23 @@ const Camps = () => {
       </section>
 
       {/* Camps List */}
-      <section className="py-12 px-4 min-h-[50vh]">
+      <section className="public-section min-h-[50vh] py-12">
         <div className="max-w-5xl mx-auto">
 
           {/* Header */}
           {!loading && !error && (
-            <div className="flex items-center justify-between mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-6">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">
-                  {camps.length} Upcoming {camps.length === 1 ? "Camp" : "Camps"}
-                  {city && <span className="text-gray-400 font-normal"> in {city}</span>}
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  {camps.length} Available {camps.length === 1 ? "Camp" : "Camps"}
+                  {city && <span className="text-gray-500 dark:text-gray-400 font-medium"> in {city}</span>}
                 </h2>
-                <p className="text-sm text-gray-400 mt-0.5">Sorted by nearest date</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Sorted by nearest date</p>
               </div>
               {!token && (
                 <Link
-                  to="/donor/login"
-                  className="text-sm text-red-600 font-semibold hover:underline"
+                  to="/login"
+                  className="text-sm text-red-600 dark:text-red-300 font-semibold hover:underline"
                 >
                   Login to Register →
                 </Link>
@@ -155,11 +167,11 @@ const Camps = () => {
 
           {/* Error */}
           {error && (
-            <div className="text-center py-16 bg-red-50 rounded-2xl border border-red-100">
-              <p className="text-red-500 font-medium">{error}</p>
+            <div className="text-center py-16 bg-red-50 dark:bg-red-900/20 rounded-2xl border border-red-100 dark:border-red-800">
+              <p className="text-red-700 dark:text-red-300 font-medium">{error}</p>
               <button
                 onClick={() => fetchCamps(city)}
-                className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 transition-all"
+                className="mt-4 px-6 py-2 bg-red-600 text-white rounded-xl text-sm font-semibold hover:bg-red-700 transition-all shadow-sm"
               >
                 Try Again
               </button>
@@ -168,13 +180,13 @@ const Camps = () => {
 
           {/* No Camps */}
           {!loading && !error && camps.length === 0 && (
-            <div className="text-center py-20 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 rounded-full mb-4">
-                <FaCalendarAlt className="text-red-300 text-2xl" />
+            <div className="text-center py-20 bg-gray-50 dark:bg-gray-900 rounded-2xl border border-dashed border-gray-200 dark:border-gray-700">
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full mb-4">
+                <FaCalendarAlt className="text-red-500 dark:text-red-300 text-2xl" />
               </div>
-              <p className="text-gray-500 font-medium">No upcoming camps found</p>
-              <p className="text-gray-400 text-sm mt-1">
-                {city ? `Try searching a different city` : `Check back later for new camps`}
+              <p className="text-gray-900 dark:text-white font-medium text-lg">No camps available at the moment</p>
+              <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
+                Please check back later or explore other areas.
               </p>
             </div>
           )}
@@ -189,25 +201,25 @@ const Camps = () => {
                 return (
                   <div
                     key={camp._id}
-                    className="bg-white rounded-2xl shadow border border-gray-100 p-5 hover:shadow-md transition-all flex flex-col"
+                    className="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition-all flex flex-col"
                   >
                     {/* Camp Header */}
                     <div className="flex items-start justify-between gap-3 mb-4">
                       <div className="flex items-center gap-3">
-                        <div className="w-11 h-11 bg-red-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                          <FaTint className="text-red-500 text-lg" />
+                        <div className="w-11 h-11 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <FaTint className="text-red-600 dark:text-red-300 text-lg" />
                         </div>
-                        <div>
-                          <h3 className="font-bold text-gray-800 text-sm leading-tight">{camp.name}</h3>
+                        <div className="min-w-0">
+                          <h3 className="font-bold text-gray-800 dark:text-gray-200 text-sm leading-tight">{camp.name}</h3>
                           {camp.bloodBankId?.name && (
-                            <p className="text-xs text-gray-400 mt-0.5">by {camp.bloodBankId.name}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">by {camp.bloodBankId.name}</p>
                           )}
                         </div>
                       </div>
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 border ${
                         camp.status === "ongoing"
-                          ? "bg-green-100 text-green-600"
-                          : "bg-blue-100 text-blue-600"
+                          ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700"
+                          : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-700"
                       }`}>
                         {camp.status === "ongoing" ? "🔴 Live" : "Upcoming"}
                       </span>
@@ -216,22 +228,22 @@ const Camps = () => {
                     {/* Camp Details */}
                     <div className="space-y-2 mb-4 flex-1">
                       {camp.description && (
-                        <p className="text-xs text-gray-500 leading-relaxed">{camp.description}</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">{camp.description}</p>
                       )}
 
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <FaCalendarAlt className="text-red-400 flex-shrink-0" />
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <FaCalendarAlt className="text-red-500 dark:text-red-300 flex-shrink-0" />
                         <span>{formatDate(camp.campDate)}</span>
                       </div>
 
-                      <div className="flex items-center gap-2 text-sm text-gray-600">
-                        <FaClock className="text-blue-400 flex-shrink-0" />
+                      <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <FaClock className="text-blue-500 dark:text-blue-300 flex-shrink-0" />
                         <span>{camp.startTime} – {camp.endTime}</span>
                       </div>
 
-                      <div className="flex items-start gap-2 text-sm text-gray-600">
-                        <MdLocationOn className="text-orange-400 flex-shrink-0 mt-0.5 text-base" />
-                        <span>
+                      <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-400">
+                        <MdLocationOn className="text-orange-500 dark:text-orange-300 flex-shrink-0 mt-0.5 text-base" />
+                        <span className="leading-relaxed">
                           {camp.address?.street && `${camp.address.street}, `}
                           {camp.address?.city}, {camp.address?.state}
                         </span>
@@ -239,17 +251,17 @@ const Camps = () => {
 
                       {/* Spots */}
                       <div className="flex items-center gap-2">
-                        <FaUsers className="text-gray-400 flex-shrink-0" />
+                        <FaUsers className="text-gray-500 dark:text-gray-400 flex-shrink-0" />
                         <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${getSpotsColor(camp.spotsLeft, camp.capacity)}`}>
                           {isFull ? "Full" : `${camp.spotsLeft} spots left`}
                         </span>
-                        <span className="text-xs text-gray-400">of {camp.capacity}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">of {camp.capacity}</span>
                       </div>
 
                       {/* Progress Bar */}
-                      <div className="w-full bg-gray-100 rounded-full h-1.5 mt-1">
+                      <div className="w-full bg-gray-100 dark:bg-gray-900 rounded-full h-1.5 mt-1 overflow-hidden">
                         <div
-                          className="bg-red-500 h-1.5 rounded-full transition-all"
+                          className="bg-gradient-to-r from-red-500 to-red-600 h-1.5 rounded-full transition-all"
                           style={{
                             width: `${Math.min((camp.totalRegistered / camp.capacity) * 100, 100)}%`,
                           }}
@@ -264,9 +276,9 @@ const Camps = () => {
                         disabled={isFull || isRegistered || registering === camp._id}
                         className={`w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-bold transition-all mt-2 ${
                           isRegistered
-                            ? "bg-green-100 text-green-600 cursor-default"
+                            ? "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 cursor-default"
                             : isFull
-                            ? "bg-gray-100 text-gray-400 cursor-not-allowed"
+                            ? "bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed"
                             : "bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-md hover:shadow-lg"
                         }`}
                       >
@@ -284,7 +296,7 @@ const Camps = () => {
                       </button>
                     ) : (
                       // Non-donor logged in — just show info
-                      <div className="w-full text-center py-2 text-xs text-gray-400 bg-gray-50 rounded-xl mt-2">
+                      <div className="w-full text-center py-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 mt-2">
                         Only donors can register for camps
                       </div>
                     )}
@@ -297,24 +309,24 @@ const Camps = () => {
       </section>
 
       {/* CTA */}
-      <section className="py-16 bg-red-600 text-white px-4">
+      <section className="public-cta">
         <div className="max-w-3xl mx-auto text-center">
-          <h2 className="text-2xl md:text-3xl font-bold mb-4">
-            Want to Organize a Camp?
+          <h2 className="public-cta-title">
+            Organize a Blood Donation Camp
           </h2>
-          <p className="text-red-100 mb-8">
-            Blood banks can create and manage donation camps directly from their dashboard.
+          <p className="public-cta-subtitle">
+            Easily create and manage donation camps through your dashboard.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
-              to="/donor/register"
-              className="inline-block px-8 py-3 bg-white text-red-600 font-bold rounded-xl hover:bg-red-50 transition-all shadow-lg"
+              to="/register"
+              className="inline-block px-6 sm:px-10 py-3 sm:py-5 bg-white text-red-600 font-bold rounded-xl hover:bg-gray-100 transition-all shadow-xl text-base sm:text-lg hover:-translate-y-1"
             >
               🩸 Register as Donor
             </Link>
             <Link
-              to="/facility/register"
-              className="inline-block px-8 py-3 bg-red-500 text-white font-bold rounded-xl hover:bg-red-400 border-2 border-white/30 transition-all"
+              to="/register"
+              className="inline-block px-6 sm:px-10 py-3 sm:py-5 bg-transparent border border-white text-white font-bold rounded-xl hover:bg-white/10 transition-all text-base sm:text-lg"
             >
               🏥 Register Your Blood Bank
             </Link>
