@@ -3,13 +3,41 @@ const bcrypt = require("bcryptjs");
 
 const donorSchema = new mongoose.Schema(
   {
-    fullName: { type: String, required: [true, "Full name is required"], trim: true },
-    email: { type: String, required: [true, "Email is required"], unique: true, lowercase: true, trim: true },
-    password: { type: String, required: [true, "Password is required"], minlength: [6, "Password must be at least 6 characters"], select: false },
+    fullName: {
+      type: String,
+      required: [true, "Full name is required"],
+      trim: true,
+    },
+    email: {
+      type: String,
+      required: [true, "Email is required"],
+      unique: true,
+      lowercase: true,
+      trim: true,
+    },
+    password: {
+      type: String,
+      required: [true, "Password is required"],
+      minlength: [6, "Password must be at least 6 characters"],
+      select: false,
+    },
     phone: { type: String, required: [true, "Phone number is required"] },
-    bloodGroup: { type: String, required: [true, "Blood group is required"], enum: ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"] },
-    age: { type: Number, required: [true, "Age is required"], min: [18, "Must be at least 18 years old"], max: [65, "Age limit is 65 years"] },
-    gender: { type: String, enum: ["male", "female", "other"], required: [true, "Gender is required"] },
+    bloodGroup: {
+      type: String,
+      required: [true, "Blood group is required"],
+      enum: ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"],
+    },
+    age: {
+      type: Number,
+      required: [true, "Age is required"],
+      min: [18, "Must be at least 18 years old"],
+      max: [65, "Age limit is 65 years"],
+    },
+    gender: {
+      type: String,
+      enum: ["male", "female", "other"],
+      required: [true, "Gender is required"],
+    },
     weight: { type: Number, min: [45, "Minimum weight should be 45kg"] },
     address: {
       city: { type: String, required: [true, "City is required"] },
@@ -22,24 +50,24 @@ const donorSchema = new mongoose.Schema(
     },
     isAvailable: { type: Boolean, default: true },
     lastDonationDate: { type: Date },
-    
+
     // ✅ This field will be manually toggled by Admin/System if needed
     eligibleToDonate: { type: Boolean, default: true },
 
     // ✅ NEW: Accountability & Lock Fields
     trustScore: {
       type: Number,
-      default: 100, 
+      default: 100,
       min: 0,
-      max: 100
+      max: 100,
     },
     penaltyUntil: {
       type: Date, // Lockout for "No-Shows"
-      default: null
+      default: null,
     },
     medicalLockUntil: {
       type: Date, // Lockout for Medical Decline
-      default: null
+      default: null,
     },
 
     donationHistory: [
@@ -47,7 +75,10 @@ const donorSchema = new mongoose.Schema(
         donationDate: { type: Date, default: Date.now },
         facility: { type: mongoose.Schema.Types.ObjectId, ref: "Facility" },
         donatedTo: { type: String, enum: ["blood-bank", "hospital"] },
-        bloodGroup: { type: String, enum: ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"] },
+        bloodGroup: {
+          type: String,
+          enum: ["A+", "A-", "B+", "B-", "O+", "O-", "AB+", "AB-"],
+        },
         units: { type: Number, default: 1 },
       },
     ],
@@ -56,11 +87,11 @@ const donorSchema = new mongoose.Schema(
     token: { type: String },
     resetPasswordExpires: { type: Date },
   },
-  { 
+  {
     timestamps: true,
     toJSON: { virtuals: true }, // Ensure virtuals show up in API responses
-    toObject: { virtuals: true }
-  }
+    toObject: { virtuals: true },
+  },
 );
 
 // Hash password
@@ -89,7 +120,8 @@ donorSchema.virtual("isCurrentlyEligible").get(function () {
 
   // 4. Check 90-day Donation Cooldown
   if (this.lastDonationDate) {
-    const diff = (now - new Date(this.lastDonationDate)) / (1000 * 60 * 60 * 24);
+    const diff =
+      (now - new Date(this.lastDonationDate)) / (1000 * 60 * 60 * 24);
     if (diff < 90) return false;
   }
 

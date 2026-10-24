@@ -4,7 +4,6 @@ const BloodRequest = require("../models/bloodRequestModel");
 const Notification = require("../models/notificationModel");
 const Donor = require("../models/donorModel");
 const BloodStock = require("../models/bloodStockModel");
-const updateBloodRequestStages = require("../utils/bloodRequestUpdater");
 const mailSender = require("../utils/mailSender");
 const donationCompletedTemplate = require("../mail/templates/donationCompletedTemplate");
 const newHospitalRequestTemplate = require("../mail/templates/newHospitalRequestTemplate");
@@ -13,27 +12,23 @@ const bloodRequestExpiredTemplate = require("../mail/templates/bloodRequestExpir
 
 // ✅ NEW: Import the notification utility
 const sendNotification = require("../utils/sendNotification");
+const { getBloodBankRadius } = require("../utils/requestRadius");
 
 const notifyNearbyBanksForRequest = async (hospital, bloodRequest) => {
   try {
-    const latestRequest = await BloodRequest.findById(bloodRequest._id).select("status");
+    const latestRequest = await BloodRequest.findById(bloodRequest._id)
+      .select("status assignedBloodBanks")
+      .populate("assignedBloodBanks.bloodBankId", "_id name email");
+      
     if (!latestRequest || latestRequest.status !== "active") {
       return;
     }
 
-    const nearbyBanks = await Facility.find({
-      facilityType: "blood-bank",
-      status: "approved",
-      isActive: true,
-      location: {
-        $near: {
-          $geometry: { type: "Point", coordinates: hospital.location.coordinates },
-          $maxDistance: 50000,
-        },
-      },
-    }).select("_id name email");
+    const assignedBanks = latestRequest.assignedBloodBanks
+      .map((entry) => entry.bloodBankId)
+      .filter((bank) => bank != null);
 
-    const notificationJobs = nearbyBanks.map(async (bank) => {
+    const notificationJobs = assignedBanks.map(async (bank) => {
       const currentRequest = await BloodRequest.findById(bloodRequest._id).select("status");
       if (!currentRequest || currentRequest.status !== "active") {
         return;
@@ -155,7 +150,6 @@ exports.updateProfile = async (req, res) => {
 // ─────────────────────────────────
 exports.getMyRequests = async (req, res) => {
   try {
-    await updateBloodRequestStages();
     const { status } = req.query;
 
     const filter = { hospitalId: req.user.id };
@@ -269,7 +263,25 @@ exports.getMyRequests = async (req, res) => {
       });
     }
 
-    // 3. Create Request (Standardizing data to prevent Schema errors)
+    // 3. Find nearby blood banks using existing GeoJSON search and urgency radius
+    const nearbyBanks = await Facility.find({
+      facilityType: "blood-bank",
+      status: "approved",
+      isActive: true,
+      location: {
+        $near: {
+          $geometry: { type: "Point", coordinates: hospital.location.coordinates },
+          $maxDistance: getBloodBankRadius(urgencyLevel),
+        },
+      },
+    }).select("_id");
+
+    const assignedBloodBanks = nearbyBanks.map((bank) => ({
+      bloodBankId: bank._id,
+      assignedAt: new Date(),
+    }));
+
+    // 4. Create Request (Standardizing data to prevent Schema errors)
     const bloodRequest = await BloodRequest.create({
       hospitalId: req.user.id,
       bloodGroup: bloodGroup.trim(),
@@ -279,6 +291,7 @@ exports.getMyRequests = async (req, res) => {
       status: "active",
       stage: "bloodbank",
       location: hospital.location,
+      assignedBloodBanks,
       // Fallback deadline (24h) if your pre-save hook isn't working
       deadline: new Date(Date.now() + 24 * 60 * 60 * 1000) 
     });
@@ -376,7 +389,6 @@ exports.cancelRequest = async (req, res) => {
 // ─────────────────────────────────
 exports.getRequestStatus = async (req, res) => {
   try {
-     await updateBloodRequestStages();
     const request = await BloodRequest.findById(req.params.id)
       .populate("hospitalId", "name phone address")
       .populate("respondedBy.responderId");

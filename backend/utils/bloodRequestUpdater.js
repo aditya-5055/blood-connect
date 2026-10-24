@@ -1,10 +1,12 @@
 const BloodRequest = require("../models/bloodRequestModel");
 const Facility = require("../models/facilityModel");
 const Donor = require("../models/donorModel");
-const ProactiveDonation = require("../models/proactiveDonationModel"); // ✅ Added Proactive Model
+const ProactiveDonation = require("../models/proactiveDonationModel");
+const AppointmentSlot = require("../models/appointmentSlotModel");
 const mailSender = require("../utils/mailSender");
 const bloodRequestExpiredTemplate = require("../mail/templates/bloodRequestExpiredTemplate");
 const sendNotification = require("./sendNotification");
+const { getDonorRadius } = require("./requestRadius");
 
 // ─────────────────────────────────────────────────────────────────
 // 🚀 HELPER: Notify nearby donors when a request escalates
@@ -19,7 +21,7 @@ const notifyEscalatedDonors = async (request) => {
       isAvailable: true,
       eligibleToDonate: true,
       location: {
-        $near: { $geometry: request.location, $maxDistance: 10000 },
+        $near: { $geometry: request.location, $maxDistance: getDonorRadius(request.urgencyLevel) },
       },
     });
 
@@ -78,82 +80,52 @@ const updateBloodRequestStages = async (now) => {
 // 🩸 PART 2: Update Proactive Donation Lifecycle (Real-World Logic)
 // ─────────────────────────────────────────────────────────────────
 const updateProactiveDonationStages = async (now) => {
-  // 1️⃣ Expire stale "Pending" requests (Bank ignored donor for 72h)
-  const staleRequests = await ProactiveDonation.find({
-    status: "pending",
-    expiresAt: { $lt: now }
-  });
+  const bookings = await ProactiveDonation.find({ status: "booked" }).populate("slotId");
 
-  for (const req of staleRequests) {
-    req.status = "expired";
-    await req.save();
-    await sendNotification(req.donorId, "Donor", "Request Expired ⏳", "The blood bank didn't respond in time. Please try another bank.", "/donor/my-requests");
-  }
+  for (const booking of bookings) {
+    if (!booking.slotId) continue;
 
-  // 2️⃣ Expire "Invited" requests (Donor ghosted bank's invite for 24h)
-  const staleInvites = await ProactiveDonation.find({
-    status: "invited",
-    expiresAt: { $lt: now }
-  });
+    const slot = booking.slotId;
+    const slotStart = new Date(slot.date);
+    const [hours, minutes] = slot.startTime.split(":").map(Number);
+    slotStart.setHours(hours, minutes, 0, 0);
 
-  for (const req of staleInvites) {
-    req.status = "expired";
-    await req.save();
-    
-    // Minor penalty for ignoring an invite
-    const donor = await Donor.findById(req.donorId);
-    if (donor) {
-      donor.trustScore = Math.max(0, (donor.trustScore || 100) - 2); 
-      donor.eligibleToDonate = true; // Unlock them to try elsewhere
-      await donor.save();
-      await sendNotification(req.donorId, "Donor", "Invite Expired ⚠️", "Your invitation has expired. Try registering again.", "/donor/my-requests");
-    }
-  }
+    if (now > slotStart) {
+      booking.status = "no-show";
+      await booking.save();
 
-  // 3️⃣ Auto-detect "No-Shows" (Appointment date + 12-hour grace period passed)
-  const gracePeriod = new Date(now.getTime() - 12 * 60 * 60 * 1000);
-  const noShows = await ProactiveDonation.find({
-    status: "confirmed",
-    appointmentDate: { $lt: gracePeriod }
-  });
+      const donor = await Donor.findById(booking.donorId);
+      if (donor) {
+        donor.trustScore = Math.max(0, (donor.trustScore || 100) - 10);
+        donor.eligibleToDonate = true; 
+        await donor.save();
 
-  for (const req of noShows) {
-    req.status = "no-show";
-    await req.save();
-
-    const donor = await Donor.findById(req.donorId);
-    if (donor) {
-      // ✅ UBER LOGIC: -10 Points, NO BAN, Unlock donor
-      donor.trustScore = Math.max(0, (donor.trustScore || 100) - 10);
-      donor.eligibleToDonate = true; 
-      await donor.save();
-      
-      await sendNotification(
-        donor._id, 
-        "Donor", 
-        "Trust Score Reduced 📉", 
-        "You missed your confirmed appointment. Your trust score was reduced, but you can book a new appointment anytime.", 
-        "/donor/profile"
-      );
+        await sendNotification(
+          donor._id, 
+          "Donor", 
+          "Missed Appointment ⚠️", 
+          `You missed your booked appointment on ${new Date(slot.date).toDateString()} at ${slot.startTime}. Your trust score was reduced by 10 points.`, 
+          "/donor/profile"
+        );
+      }
     }
   }
 };
 
-// ─────────────────────────────────────────────────────────────────
 // 🔄 MAIN WRAPPER: Runs all updaters
 // ─────────────────────────────────────────────────────────────────
-const runSystemUpdaters = async () => {
+const runBloodRequestUpdater = async () => {
   try {
     const now = new Date();
-    console.log(`[${now.toISOString()}] 🛡️ Running System Updaters...`);
+    console.log(`[${now.toISOString()}] 🛡️ Running Blood Request Updater...`);
     
     await updateBloodRequestStages(now);
     await updateProactiveDonationStages(now);
     
     console.log(`[${now.toISOString()}] ✅ Cleanup Complete.`);
   } catch (error) {
-    console.error("Critical Error in runSystemUpdaters:", error.message);
+    console.error("Critical Error in runBloodRequestUpdater:", error.message);
   }
 };
 
-module.exports = runSystemUpdaters;
+module.exports = runBloodRequestUpdater;

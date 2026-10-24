@@ -1,17 +1,16 @@
 const Donor = require("../models/donorModel");
 const Facility = require("../models/facilityModel");
 const ProactiveDonation = require("../models/proactiveDonationModel");
+const AppointmentSlot = require("../models/appointmentSlotModel");
 const BloodRequest = require("../models/bloodRequestModel");
 const Camp = require("../models/campModel");
-const updateCampStatuses = require("../utils/campStatusUpdater");
-const updateBloodRequestStages = require("../utils/bloodRequestUpdater");
 const mailSender = require("../utils/mailSender");
 const bloodRequestAcceptedTemplate = require("../mail/templates/bloodRequestAcceptedTemplate");
 const campRegistrationTemplate = require("../mail/templates/campRegistrationTemplate");
-const newProactiveDonorTemplate = require("../mail/templates/newProactiveDonorTemplate");
 const mongoose = require("mongoose");
 // ✅ NEW: Import the notification utility
 const sendNotification = require("../utils/sendNotification");
+const { getDonorRadius, calculateDistance } = require("../utils/requestRadius");
 
 const getTrustRestrictionMessage = (donor) => {
   const now = new Date();
@@ -249,8 +248,6 @@ exports.getNearbyCamps = async (req, res) => {
       }
     }
 
-    await updateCampStatuses();
-
     const camps = await Camp.find({
       status: { $in: ["upcoming", "ongoing"] },
       location: {
@@ -297,8 +294,6 @@ exports.getNearbyCamps = async (req, res) => {
 // ─────────────────────────────────
 exports.getMyCampRegistrations = async (req, res) => {
   try {
-    await updateCampStatuses();
-
     const camps = await Camp.find({
       "registeredDonors.donorId": req.user.id,
     }).populate("bloodBankId", "name phone address");
@@ -342,48 +337,26 @@ exports.getMyCampRegistrations = async (req, res) => {
 };
 
 // ─────────────────────────────────
-// @route  PUT /api/donor/confirm-invite/:id
-// @desc   Donor confirms the bank's appointment invitation
+// @route  GET /api/donor/bloodbanks/:bankId/slots
+// @desc   Get available slots for a specific blood bank
 // @access Donor only
 // ─────────────────────────────────
-exports.confirmDonationInvite = async (req, res) => {
+exports.getAvailableSlotsForBank = async (req, res) => {
   try {
-    const donationRequest = await ProactiveDonation.findById(req.params.id);
+    const { bankId } = req.params;
+    const now = new Date();
+    now.setHours(0, 0, 0, 0); // Include today's slots
 
-    if (!donationRequest || donationRequest.status !== "invited") {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid request or invitation has expired.",
-      });
-    }
-
-    if (donationRequest.donorId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: "Unauthorized" });
-    }
-
-    // Move status to confirmed
-    donationRequest.status = "confirmed";
-    donationRequest.confirmedAt = new Date();
-    await donationRequest.save();
-
-    // Lock the donor so they don't apply elsewhere while committed
-    await Donor.findByIdAndUpdate(req.user.id, { eligibleToDonate: false });
-
-    const bloodBank = await Facility.findById(donationRequest.bloodBankId);
-
-    // Notify Blood Bank
-    await sendNotification(
-      bloodBank._id,
-      "Facility",
-      "Appointment Confirmed! ✅",
-      `${req.user.fullName} has confirmed the appointment for ${new Date(donationRequest.appointmentDate).toDateString()}.`,
-      "/bloodbank/donation-requests"
-    );
+    const slots = await AppointmentSlot.find({
+      bloodBankId: bankId,
+      date: { $gte: now },
+      isActive: true,
+    }).sort({ date: 1, startTime: 1 });
 
     return res.status(200).json({
       success: true,
-      message: "Appointment confirmed! Please arrive on time to maintain your trust score.",
-      donationRequest,
+      message: "Available slots fetched successfully",
+      slots,
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -391,36 +364,28 @@ exports.confirmDonationInvite = async (req, res) => {
 };
 
 // ─────────────────────────────────
-// @route  POST /api/donor/proactive-donate (Updated with Penalties)
+// @route  POST /api/donor/book-slot
+// @desc   Donor books an available slot
+// @access Donor only
 // ─────────────────────────────────
-exports.proactiveDonate = async (req, res) => {
+exports.bookSlot = async (req, res) => {
   try {
-    const { bloodBankId, notes } = req.body;
+    const { slotId, notes } = req.body;
     const donor = await Donor.findById(req.user.id);
 
     if (!donor) {
-      return res.status(404).json({
-        success: false,
-        message: "Donor not found",
-      });
+      return res.status(404).json({ success: false, message: "Donor not found" });
     }
 
     const trustRestrictionMessage = getTrustRestrictionMessage(donor);
     if (trustRestrictionMessage) {
-      return res.status(403).json({
-        success: false,
-        message: trustRestrictionMessage,
-      });
+      return res.status(403).json({ success: false, message: trustRestrictionMessage });
     }
 
-    // ✅ UBER LOGIC: We removed the 7-day penalty ban here.
-    // Even if their trust score is low due to previous No-Shows, they can request again.
-
-    // ✅ REAL WORLD CHECK: Medical Lock (Maintained)
     if (donor.medicalLockUntil && new Date() < donor.medicalLockUntil) {
       return res.status(403).json({
         success: false,
-        message: `You are on medical recovery based on a previous facility review. Eligible after ${donor.medicalLockUntil.toDateString()}.`,
+        message: `You are on medical recovery. Eligible after ${donor.medicalLockUntil.toDateString()}.`,
       });
     }
 
@@ -442,79 +407,68 @@ exports.proactiveDonate = async (req, res) => {
     if (!donor.eligibleToDonate) {
       return res.status(400).json({
         success: false,
-        message: "You already have a confirmed donation request. Please complete it first.",
+        message: "You already have a booked donation request. Please complete or cancel it first.",
       });
     }
 
-    const bloodBank = await Facility.findById(bloodBankId);
-    if (!bloodBank || bloodBank.facilityType !== "blood-bank") {
-      return res.status(404).json({
-        success: false,
-        message: "Blood bank not found",
-      });
-    }
-    if (bloodBank.status !== "approved") {
-      return res.status(400).json({
-        success: false,
-        message: "Blood bank is not approved",
-      });
+    const slot = await AppointmentSlot.findById(slotId);
+    if (!slot || !slot.isActive) {
+      return res.status(404).json({ success: false, message: "Appointment slot not found or inactive" });
     }
 
-    const existingRequest = await ProactiveDonation.findOne({
+    const slotStart = new Date(slot.date);
+    const [hours, minutes] = slot.startTime.split(":").map(Number);
+    slotStart.setHours(hours, minutes, 0, 0);
+
+    if (new Date() >= slotStart) {
+      return res.status(400).json({ success: false, message: "This slot time has already passed." });
+    }
+
+    if (slot.bookedCount >= slot.capacity) {
+      return res.status(400).json({ success: false, message: "This slot is fully booked." });
+    }
+
+    const existingBooking = await ProactiveDonation.findOne({
       donorId: req.user.id,
-      bloodBankId: bloodBankId,
-      status: { $in: ["pending", "confirmed"] },
+      status: "booked",
     });
 
-    if (existingRequest) {
+    if (existingBooking) {
       return res.status(400).json({
         success: false,
-        message: existingRequest.status === "confirmed"
-          ? "You already have a confirmed request with this blood bank"
-          : "You already sent a request to this blood bank",
+        message: "You already have an active slot booked. Please complete or cancel it first.",
       });
     }
-    
-    const donationRequest = await ProactiveDonation.create({
+
+    slot.bookedCount += 1;
+    await slot.save();
+
+    const booking = await ProactiveDonation.create({
       donorId: req.user.id,
-      bloodBankId,
+      bloodBankId: slot.bloodBankId,
+      slotId,
       bloodGroup: donor.bloodGroup,
       notes,
-      status: "pending",
-      expiresAt: new Date(Date.now() + 72 * 60 * 60 * 1000) // 3-day expiry for bank response
+      status: "booked",
     });
 
-    // Notify blood bank about new donation request (Email)
-    try {
-      await mailSender(
-        bloodBank.email,
-        "New Donation Request - Blood Donation System",
-        newProactiveDonorTemplate(
-          bloodBank.name,
-          donor.fullName,
-          donor.bloodGroup,
-          donor.phone,
-          donor.age,
-          donor.weight
-        )
-      );
-    } catch (emailError) {
-      console.error("Blood bank notification email failed:", emailError.message);
-    }
+    donor.eligibleToDonate = false;
+    await donor.save();
 
-    // In-App Notification to Blood Bank
+    const bloodBank = await Facility.findById(slot.bloodBankId);
+
     await sendNotification(
       bloodBank._id,
       "Facility",
-      "New Donor Request 🩸",
-      `${donor.fullName} (${donor.bloodGroup}) requested to donate at your facility. Please review.`,
-      "/bloodbank/donation-requests" 
+      "New Appointment Booking 📅",
+      `${donor.fullName} (${donor.bloodGroup}) booked an appointment slot on ${new Date(slot.date).toDateString()} at ${slot.startTime}.`,
+      "/bloodbank/donation-requests"
     );
 
     return res.status(201).json({
       success: true,
-      message: "Request sent. If the bank doesn't respond in 72 hours, the request will auto-expire.",
-      donationRequest,
+      message: "Appointment slot booked successfully!",
+      booking,
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
@@ -527,8 +481,6 @@ exports.proactiveDonate = async (req, res) => {
 // ─────────────────────────────────
 exports.registerForCamp = async (req, res) => {
   try {
-    await updateCampStatuses();
-
     const donor = await Donor.findById(req.user.id);
     if (!donor) {
       return res.status(404).json({
@@ -692,22 +644,24 @@ exports.registerForCamp = async (req, res) => {
 // @route  GET /api/donor/my-donation-requests
 // @access Donor only
 // ─────────────────────────────────
-exports.getMyDonationRequests = async (req, res) => {
+exports.getMyBookings = async (req, res) => {
   try {
-    const donationRequests = await ProactiveDonation.find({
+    const bookings = await ProactiveDonation.find({
       donorId: req.user.id,
-    }).populate("bloodBankId", "name phone address operatingHours");
+    })
+      .populate("bloodBankId", "name phone address operatingHours")
+      .populate("slotId", "date startTime endTime capacity bookedCount");
 
     return res.status(200).json({
       success: true,
-      message: "Donation requests fetched successfully",
-      count: donationRequests.length,
-      donationRequests,
+      message: "Donation bookings fetched successfully",
+      count: bookings.length,
+      donationRequests: bookings,
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: "Failed to fetch donation requests",
+      message: "Failed to fetch donation bookings",
       error: error.message,
     });
   }
@@ -719,8 +673,6 @@ exports.getMyDonationRequests = async (req, res) => {
 // ─────────────────────────────────
 exports.getNearbyBloodRequests = async (req, res) => {
   try {
-    await updateBloodRequestStages();
-
     let { longitude, latitude } = req.query;
 
     const donor = await Donor.findById(req.user.id);
@@ -771,7 +723,7 @@ exports.getNearbyBloodRequests = async (req, res) => {
       }
     }
 
-    const requests = await BloodRequest.find({
+    const allRequests = await BloodRequest.find({
       stage: "both",
       status: "active",
       bloodGroup: donor.bloodGroup,
@@ -783,10 +735,18 @@ exports.getNearbyBloodRequests = async (req, res) => {
             type: "Point",
             coordinates: [parseFloat(longitude), parseFloat(latitude)],
           },
-          $maxDistance: 10000,
+          $maxDistance: 30000, // Query up to the maximum possible donor search radius (30km)
         },
       },
     }).populate("hospitalId", "name address phone");
+
+    const requests = allRequests.filter((request) => {
+      const distance = calculateDistance(
+        [parseFloat(longitude), parseFloat(latitude)],
+        request.location.coordinates
+      );
+      return distance <= getDonorRadius(request.urgencyLevel);
+    });
 
     return res.status(200).json({
       success: true,
@@ -993,8 +953,6 @@ exports.declineBloodRequest = async (req, res) => {
     }
     await request.save();
 
-    await updateBloodRequestStages();
-
     return res.status(200).json({
       success: true,
       message: "Blood request declined",
@@ -1010,57 +968,52 @@ exports.declineBloodRequest = async (req, res) => {
 // ─────────────────────────────────
 // @route  PATCH /api/donor/cancel-request/:id
 // ─────────────────────────────────
-exports.cancelDonationRequest = async (req, res) => {
+exports.cancelBooking = async (req, res) => {
   try {
-    // ✅ CHANGE THIS: Must match the :id in your routes file
-    const { id } = req.params; 
+    const { id } = req.params;
     const donorId = req.user.id;
 
-    // 1. Validate ID
     if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Invalid ID format" 
+      return res.status(400).json({ success: false, message: "Invalid ID format" });
+    }
+
+    const booking = await ProactiveDonation.findOne({ _id: id, donorId }).populate("slotId");
+    if (!booking) {
+      return res.status(404).json({ success: false, message: "Booking request not found" });
+    }
+
+    if (booking.status !== "booked") {
+      return res.status(400).json({ success: false, message: "Only active booked slots can be cancelled" });
+    }
+
+    const slot = booking.slotId;
+    if (!slot) {
+      return res.status(400).json({ success: false, message: "Associated slot not found" });
+    }
+
+    const slotStart = new Date(slot.date);
+    const [hours, minutes] = slot.startTime.split(":").map(Number);
+    slotStart.setHours(hours, minutes, 0, 0);
+
+    const cutoffTime = slotStart.getTime() - 6 * 60 * 60 * 1000;
+    if (Date.now() > cutoffTime) {
+      return res.status(400).json({
+        success: false,
+        message: "Cancellation not allowed within 6 hours of the slot start time.",
       });
     }
 
-    // 2. Find and Update
-    const request = await ProactiveDonation.findOne({ _id: id, donorId });
+    booking.status = "cancelled";
+    await booking.save();
 
-    if (!request) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Donation request not found" 
-      });
-    }
-
-    // 3. Set status and unlock donor
-    request.status = "cancelled";
-    await request.save();
+    slot.bookedCount = Math.max(0, slot.bookedCount - 1);
+    await slot.save();
 
     await Donor.findByIdAndUpdate(donorId, { eligibleToDonate: true });
 
     return res.status(200).json({
       success: true,
-      message: "Request successfully cancelled/declined",
-    });
-  } catch (error) {
-    console.error("CANCEL ERROR:", error.message);
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// This function MUST exist because your route file calls it
-exports.cancelDonationAppointment = async (req, res) => {
-  try {
-    const { id } = req.params;
-    // Basic logic to clear a confirmed appointment
-    await ProactiveDonation.findByIdAndUpdate(id, { status: "cancelled" });
-    await Donor.findByIdAndUpdate(req.user.id, { eligibleToDonate: true });
-
-    return res.status(200).json({
-      success: true,
-      message: "Appointment cancelled successfully",
+      message: "Booking successfully cancelled",
     });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

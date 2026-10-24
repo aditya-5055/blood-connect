@@ -19,10 +19,12 @@ const donorRoutes = require("./routes/donorRoutes");
 const publicRoutes = require("./routes/publicRoutes");
 const notificationRoutes = require("./routes/notificationRoutes"); // ✅ Keep only ONE of these
 const reportRoutes = require("./routes/reportRoutes");
+const aiAssistRoutes = require("./routes/aiAssistRoutes"); // 🤖 AI Smart Assist
 
-// ✅ FIXED: You need to import this function so the "Janitor" logic works
-const runSystemUpdaters = require("./utils/systemUpdaters"); 
 const { startFacilityAutoRejectCron } = require("./utils/facilityAutoRejectCron");
+const { startBloodRequestCron } = require("./utils/bloodRequestCron");
+const { startCampLifecycleCron } = require("./utils/campLifecycleCron");
+const { startInventoryExpiryCron } = require("./utils/inventoryExpiryCron");
 
 // ─────────────────────────────────────────────────────────
 // LOAD ENVIRONMENT VARIABLES & CONNECT DB
@@ -54,20 +56,22 @@ app.use("/api/hospital", hospitalRoutes);
 app.use("/api/public", publicRoutes);
 app.use("/api/notifications", notificationRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/ai", aiAssistRoutes);           // 🤖 AI Smart Assist
 
 // ─────────────────────────────────────────────────────────
 // ✅ SYSTEM AUTOMATION (The "Janitor" Logic)
 // ─────────────────────────────────────────────────────────
-// 1. Run once immediately when server starts
-runSystemUpdaters();
-
-// 2. Set interval to run every 1 hour (3600000 milliseconds)
-setInterval(() => {
-  runSystemUpdaters();
-}, 3600000);
-
-// 3. Start separate cron for pending facility auto-rejection
+// 1. Start separate cron for pending facility auto-rejection
 startFacilityAutoRejectCron();
+
+// 2. Start separate cron for blood request lifecycle management
+startBloodRequestCron();
+
+// 3. Start separate cron for camp lifecycle management
+startCampLifecycleCron();
+
+// 4. Start separate cron for inventory expiration sweep
+startInventoryExpiryCron();
 
 // ─────────────────────────────────────────────────────────
 // TEST ROUTE & START SERVER

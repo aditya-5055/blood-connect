@@ -1,5 +1,5 @@
 import { apiConnector } from "./apiConnector";
-import { HOSPITAL_APIS } from "./apis";
+import { HOSPITAL_APIS, AI_APIS } from "./apis";
 
 export const getHospitalProfile = async () => {
   const response = await apiConnector("GET", HOSPITAL_APIS.GET_PROFILE);
@@ -38,5 +38,11 @@ export const completeRequest = async (id) => {
 
 export const getNearbyBloodBanks = async () => {
   const response = await apiConnector("GET", HOSPITAL_APIS.GET_NEARBY_BLOOD_BANKS);
+  return response.data;
+};
+
+// 🤖 AI Smart Assist — parse a free-text note into structured blood-request fields
+export const parseBloodRequest = async (note) => {
+  const response = await apiConnector("POST", AI_APIS.PARSE_BLOOD_REQUEST, { note });
   return response.data;
 };

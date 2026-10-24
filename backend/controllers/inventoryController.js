@@ -1,3 +1,6 @@
+// no use case in muy project
+
+
 const InventoryLog = require("../models/inventoryLogModel");
 const Facility = require("../models/facilityModel");
 

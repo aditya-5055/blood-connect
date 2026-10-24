@@ -40,40 +40,23 @@ export const getNearbyRequests = async (longitude, latitude) => {
 };
 
 // --- Proactive Donation Workflow (Donor -> Bank) ---
+export const getAvailableSlotsForBank = async (bankId) => {
+  const response = await apiConnector("GET", DONOR_APIS.GET_BANK_SLOTS(bankId));
+  return response.data;
+};
+
 export const proactiveDonate = async (data) => {
-  const response = await apiConnector("POST", DONOR_APIS.PROACTIVE_DONATE, data);
+  const response = await apiConnector("POST", DONOR_APIS.BOOK_SLOT, data);
   return response.data;
 };
 
 export const getMyDonationRequests = async () => {
-  const response = await apiConnector("GET", DONOR_APIS.GET_MY_DONATION_REQUESTS);
+  const response = await apiConnector("GET", DONOR_APIS.GET_MY_BOOKINGS);
   return response.data;
 };
 
-/**
- * ✅ Standardized Logic:
- * 'confirmed' -> PUT to /confirm-invite/:id
- * 'declined'  -> PATCH to /cancel-request/:id
- */
-export const updateDonationRequestStatus = async (requestId, data) => {
-  try {
-    if (data.action === 'confirmed') {
-      return await confirmDonationInvite(requestId);
-    } else {
-      return await cancelDonationRequest(requestId);
-    }
-  } catch (error) {
-    throw error;
-  }
-};
-
-export const confirmDonationInvite = async (requestId) => {
-  const response = await apiConnector("PUT", DONOR_APIS.CONFIRM_INVITE(requestId));
-  return response.data;
-};
-
-export const cancelDonationRequest = async (requestId) => {
-  const response = await apiConnector("PATCH", DONOR_APIS.CANCEL_REQUEST(requestId));
+export const cancelDonationRequest = async (id) => {
+  const response = await apiConnector("PUT", DONOR_APIS.CANCEL_BOOKING(id));
   return response.data;
 };
 

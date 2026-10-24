@@ -4,21 +4,18 @@ const BloodRequest = require("../models/bloodRequestModel");
 const BloodStock = require("../models/bloodStockModel");
 const Camp = require("../models/campModel");
 const Donor = require("../models/donorModel");
-const updateCampStatuses = require("../utils/campStatusUpdater");
 const TransactionHistory = require("../models/transactionHistoryModel");
-const updateBloodRequestStages = require("../utils/bloodRequestUpdater");
 const mailSender = require("../utils/mailSender");
-const proactiveConfirmedTemplate = require("../mail/templates/proactiveConfirmedTemplate");
-const proactiveDeclinedTemplate = require("../mail/templates/proactiveDeclinedTemplate");
+const AppointmentSlot = require("../models/appointmentSlotModel");
 const campRegistrationTemplate = require("../mail/templates/campRegistrationTemplate");
 const donationCompletedTemplate = require("../mail/templates/donationCompletedTemplate");
 const campCompletedTemplate = require("../mail/templates/campCompletedTemplate");
 const newHospitalRequestTemplate = require("../mail/templates/newHospitalRequestTemplate");
-const newProactiveDonorTemplate = require("../mail/templates/newProactiveDonorTemplate");
 const bloodRequestAcceptedTemplate = require("../mail/templates/bloodRequestAcceptedTemplate");
 
 // ✅ NEW: Import the notification utility
 const sendNotification = require("../utils/sendNotification");
+const { getDonorRadius } = require("../utils/requestRadius");
 
 const notifyHospitalRequestAccepted = async (request, bloodBank) => {
   try {
@@ -63,7 +60,7 @@ const notifyHospitalRequestAccepted = async (request, bloodBank) => {
 const notifyNearbyDonorsForEscalatedRequest = async (requestId) => {
   try {
     const request = await BloodRequest.findById(requestId).select(
-      "bloodGroup units location status stage"
+      "bloodGroup units location status stage urgencyLevel"
     );
     if (!request || request.status !== "active" || request.stage !== "both") {
       return;
@@ -76,7 +73,7 @@ const notifyNearbyDonorsForEscalatedRequest = async (requestId) => {
       location: {
         $near: {
           $geometry: request.location,
-          $maxDistance: 10000,
+          $maxDistance: getDonorRadius(request.urgencyLevel),
         },
       },
     }).select("_id");
@@ -182,15 +179,6 @@ exports.getInventory = async (req, res) => {
   try {
     const now = new Date();
 
-    await BloodStock.updateMany(
-      {
-        bloodBankId: req.user.id,
-        status: "available",
-        expiryDate: { $lt: now },
-      },
-      { status: "expired" },
-    );
-
     const stock = await BloodStock.find({
       bloodBankId: req.user.id,
       status: "available",
@@ -262,30 +250,23 @@ exports.getDonationRequests = async (req, res) => {
   try {
     const requests = await ProactiveDonation.find({
       bloodBankId: req.user.id,
-      status: { $in: ["pending", "invited", "confirmed", "cancelled"] },
-    }).populate("donorId", "fullName phone bloodGroup age weight trustScore penaltyUntil");
-
-    const statusOrder = {
-      pending: 1,
-      invited: 2,
-      confirmed: 3,
-      cancelled: 4,
-    };
+    })
+      .populate("donorId", "fullName phone bloodGroup age weight trustScore penaltyUntil")
+      .populate("slotId", "date startTime endTime capacity bookedCount");
 
     requests.sort((a, b) => {
-      const statusDiff = (statusOrder[a.status] || 99) - (statusOrder[b.status] || 99);
-      if (statusDiff !== 0) return statusDiff;
-
-      const aScore = a.donorId?.trustScore || 100;
-      const bScore = b.donorId?.trustScore || 100;
-      if (aScore !== bScore) return bScore - aScore;
-
-      return new Date(b.createdAt) - new Date(a.createdAt);
+      if (!a.slotId || !b.slotId) return 0;
+      const aDate = new Date(a.slotId.date);
+      const bDate = new Date(b.slotId.date);
+      if (aDate.getTime() !== bDate.getTime()) {
+        return aDate - bDate;
+      }
+      return a.slotId.startTime.localeCompare(b.slotId.startTime);
     });
 
     return res.status(200).json({
       success: true,
-      message: "Donation requests fetched successfully",
+      message: "Donation bookings fetched successfully",
       count: requests.length,
       requests,
     });
@@ -300,8 +281,6 @@ exports.getDonationRequests = async (req, res) => {
 
 exports.completeCamp = async (req, res) => {
   try {
-    await updateCampStatuses();
-
     const camp = await Camp.findById(req.params.campId);
     if (!camp) {
       return res.status(404).json({
@@ -443,98 +422,16 @@ exports.completeCamp = async (req, res) => {
 };
 
 // ✅ Updated: Process Request (Invite or Decline)
-exports.processDonationRequest = async (req, res) => {
-  try {
-    const { action, declineReason, appointmentDate, slotTime } = req.body;
-    
-    if (!action || !["invite", "decline"].includes(action)) {
-      return res.status(400).json({ success: false, message: "Action must be invite or decline" });
-    }
-
-    const donationRequest = await ProactiveDonation.findById(req.params.id);
-    if (!donationRequest) return res.status(404).json({ success: false, message: "Request not found" });
-    
-    // Authorization check
-    if (donationRequest.bloodBankId.toString() !== req.user.id) {
-      return res.status(403).json({ success: false, message: "Unauthorized" });
-    }
-
-    const donor = await Donor.findById(donationRequest.donorId);
-    const bloodBank = await Facility.findById(req.user.id);
-
-    if (action === "invite") {
-      if (!appointmentDate || !slotTime) {
-        return res.status(400).json({ success: false, message: "Date and Time slot are required" });
-      }
-
-      // Prevent past dates
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      if (new Date(appointmentDate) < today) {
-        return res.status(400).json({ success: false, message: "Appointment date cannot be in the past." });
-      }
-
-      // Update request to 'invited' state
-      donationRequest.status = "invited";
-      donationRequest.appointmentDate = new Date(appointmentDate);
-      donationRequest.slotTime = slotTime;
-      // Link the generic status from our model discussion
-      // If you are using BloodRequest model for this, ensure the field names match
-      donationRequest.expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); 
-      await donationRequest.save();
-
-      // Notify Donor to Accept/Decline the time
-      await sendNotification(
-        donor._id, 
-        "Donor", 
-        "Donation Invite 📅", 
-        `${bloodBank.name} invited you for ${new Date(appointmentDate).toDateString()} at ${slotTime}. Please confirm your availability!`, 
-        "/donor/my-requests"
-      );
-
-      return res.status(200).json({ 
-        success: true, 
-        message: "Invitation sent. Waiting for donor confirmation.", 
-        donationRequest 
-      });
-
-    } else {
-      // Logic for Decline
-      donationRequest.status = "declined";
-      donationRequest.declineReason = declineReason;
-      await donationRequest.save();
-      
-      // If medical reason, lock the donor for 30 days
-      if (declineReason?.toLowerCase().includes("medical")) {
-        donor.medicalLockUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-        await donor.save();
-      }
-
-      await sendNotification(
-        donor._id, 
-        "Donor", 
-        "Request Declined ℹ️", 
-        `${bloodBank.name} declined your request. Reason: ${declineReason}. You can try other banks.`, 
-        "/donor/donation-history"
-      );
-
-      return res.status(200).json({ success: true, message: "Request declined. Donor notified." });
-    }
-  } catch (error) {
-    return res.status(500).json({ success: false, message: error.message });
-  }
-};
-
-// ✅ Updated: Complete Donation (Success Case)
+// ✅ Rewritten: Complete Donation
 exports.completeDonation = async (req, res) => {
   try {
     const { units } = req.body;
     const donationRequest = await ProactiveDonation.findById(req.params.id);
 
-    if (!donationRequest || donationRequest.status !== "confirmed") {
+    if (!donationRequest || donationRequest.status !== "booked") {
       return res.status(400).json({ 
         success: false, 
-        message: "Donation must be confirmed by the donor before marking as complete." 
+        message: "Donation must be booked by the donor before marking as complete." 
       });
     }
 
@@ -561,7 +458,6 @@ exports.completeDonation = async (req, res) => {
       units: units || 1
     });
     
-    // Boost trust score for successful donation (cap at 100)
     donor.trustScore = Math.min(100, (donor.trustScore || 100) + 5);
     await donor.save();
 
@@ -583,42 +479,177 @@ exports.completeDonation = async (req, res) => {
   }
 };
 
-// ✅ Updated: Mark No-Show (Penalty Case)
+// ✅ Rewritten: Mark No-Show
 exports.markNoShow = async (req, res) => {
   try {
     const donationRequest = await ProactiveDonation.findById(req.params.id);
-    if (!donationRequest || donationRequest.status !== "confirmed") {
-      return res.status(400).json({ success: false, message: "Only confirmed appointments can be marked as No-Show." });
+    if (!donationRequest || donationRequest.status !== "booked") {
+      return res.status(400).json({ success: false, message: "Only active booked appointments can be marked as No-Show." });
     }
 
     donationRequest.status = "no-show";
     await donationRequest.save();
 
     const donor = await Donor.findById(donationRequest.donorId);
+    if (donor) {
+      donor.trustScore = Math.max(0, (donor.trustScore || 100) - 10);
+      donor.eligibleToDonate = true; 
+      await donor.save();
 
-    // Penalty: drop trust score and apply temporary lock window.
-    donor.trustScore = Math.max(0, (donor.trustScore || 100) - 15);
-
-    const now = new Date();
-    const temporaryPenaltyDays = 7;
-    const severePenaltyDays = 30;
-    const lockDays = donor.trustScore < 40 ? severePenaltyDays : temporaryPenaltyDays;
-    donor.penaltyUntil = new Date(now.getTime() + lockDays * 24 * 60 * 60 * 1000);
-
-    // Re-enable future donation flow after penalty period.
-    donor.eligibleToDonate = true; 
-
-    await donor.save();
-
-    await sendNotification(
-      donor._id,
-      "Donor",
-      "Missed Appointment ⚠️",
-      `You missed your scheduled donation. Your trust score has been reduced and your account is restricted until ${donor.penaltyUntil.toDateString()}.`,
-      "/donor/my-requests"
-    );
+      await sendNotification(
+        donor._id,
+        "Donor",
+        "Missed Appointment ⚠️",
+        "You missed your scheduled appointment. Your trust score has been reduced by 10 points.",
+        "/donor/my-requests"
+      );
+    }
 
     return res.status(200).json({ success: true, message: "No-Show recorded. Trust score penalized." });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ─────────────────────────────────
+// Appointment Slot CRUD
+// ─────────────────────────────────
+exports.getBloodBankSlots = async (req, res) => {
+  try {
+    const slots = await AppointmentSlot.find({ bloodBankId: req.user.id })
+      .sort({ date: 1, startTime: 1 });
+    return res.status(200).json({
+      success: true,
+      slots,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.createSlot = async (req, res) => {
+  try {
+    const { date, startTime, endTime, capacity } = req.body;
+
+    if (!date || !startTime || !endTime || !capacity) {
+      return res.status(400).json({ success: false, message: "All fields are required" });
+    }
+
+    const slotDate = new Date(date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (slotDate < today) {
+      return res.status(400).json({ success: false, message: "Slot date cannot be in the past." });
+    }
+
+    if (capacity <= 0) {
+      return res.status(400).json({ success: false, message: "Capacity must be greater than 0." });
+    }
+
+    const slot = await AppointmentSlot.create({
+      bloodBankId: req.user.id,
+      date: slotDate,
+      startTime,
+      endTime,
+      capacity,
+      bookedCount: 0,
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: "Appointment slot created successfully!",
+      slot,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.editSlot = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { date, startTime, endTime, capacity, isActive } = req.body;
+
+    const slot = await AppointmentSlot.findOne({ _id: id, bloodBankId: req.user.id });
+    if (!slot) {
+      return res.status(404).json({ success: false, message: "Slot not found" });
+    }
+
+    if (capacity !== undefined) {
+      if (capacity < slot.bookedCount) {
+        return res.status(400).json({
+          success: false,
+          message: `New capacity cannot be less than currently booked seats (${slot.bookedCount}).`,
+        });
+      }
+      slot.capacity = capacity;
+    }
+
+    if (date !== undefined) {
+      const slotDate = new Date(date);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (slotDate < today) {
+        return res.status(400).json({ success: false, message: "Slot date cannot be in the past." });
+      }
+      slot.date = slotDate;
+    }
+
+    if (startTime !== undefined) slot.startTime = startTime;
+    if (endTime !== undefined) slot.endTime = endTime;
+    if (isActive !== undefined) slot.isActive = isActive;
+
+    await slot.save();
+
+    return res.status(200).json({
+      success: true,
+      message: "Slot updated successfully",
+      slot,
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.deleteSlot = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const slot = await AppointmentSlot.findOne({ _id: id, bloodBankId: req.user.id });
+
+    if (!slot) {
+      return res.status(404).json({ success: false, message: "Slot not found" });
+    }
+
+    if (slot.bookedCount > 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete slot with active bookings. Try setting it to inactive instead.",
+      });
+    }
+
+    await AppointmentSlot.findByIdAndDelete(id);
+
+    return res.status(200).json({
+      success: true,
+      message: "Slot deleted successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+exports.getSlotBookings = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const bookings = await ProactiveDonation.find({
+      slotId: id,
+      bloodBankId: req.user.id,
+    }).populate("donorId", "fullName phone bloodGroup age weight trustScore");
+
+    return res.status(200).json({
+      success: true,
+      bookings,
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -782,8 +813,6 @@ exports.updateInventory = async (req, res) => {
 // ─────────────────────────────────
 exports.markDonorAttendance = async (req, res) => {
   try {
-    await updateCampStatuses();
-
     const { bloodGroup } = req.body;
     const units = 1;
 
@@ -871,8 +900,6 @@ exports.markDonorAttendance = async (req, res) => {
 // ─────────────────────────────────
 exports.getIncomingBloodRequests = async (req, res) => {
   try {
-    await updateBloodRequestStages();
-
     const bloodBank = await Facility.findById(req.user.id);
     if (!bloodBank) {
       return res.status(404).json({
@@ -886,15 +913,7 @@ exports.getIncomingBloodRequests = async (req, res) => {
       stage: { $in: ["bloodbank", "both"] },
       deadline: { $gt: new Date() },
       declinedByBloodBanks: { $nin: [req.user.id] },
-      location: {
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: bloodBank.location.coordinates,
-          },
-          $maxDistance: 50000,
-        },
-      },
+      "assignedBloodBanks.bloodBankId": req.user.id,
     }).populate("hospitalId", "name phone address");
 
     const requestsWithStock = await Promise.all(
@@ -988,27 +1007,11 @@ exports.respondToBloodRequest = async (req, res) => {
         request.declinedByBloodBanks.push(req.user.id);
       }
 
-      // Find all approved nearby blood banks
-      const nearbyBanks = await Facility.find({
-        facilityType: "blood-bank",
-        status: "approved",
-        isActive: true,
-        location: {
-          $near: {
-            $geometry: {
-              type: "Point",
-              coordinates: request.location.coordinates,
-            },
-            $maxDistance: 50000,
-          },
-        },
-      });
-
-      // ✅ Logic to check if all banks have declined and notify donors
-      if (nearbyBanks.length > 0 && request.units === 1) {
-        const nearbyBankIds = nearbyBanks.map((b) => b._id.toString());
+      // ✅ Logic to check if all assigned banks have declined and notify donors
+      if (request.assignedBloodBanks && request.assignedBloodBanks.length > 0 && request.units === 1) {
+        const assignedBankIds = request.assignedBloodBanks.map((b) => b.bloodBankId.toString());
         const declinedIds = request.declinedByBloodBanks.map((id) => id.toString());
-        const allDeclined = nearbyBankIds.every((id) => declinedIds.includes(id));
+        const allDeclined = assignedBankIds.every((id) => declinedIds.includes(id));
 
         if (allDeclined && request.stage === "bloodbank") {
           request.stage = "both";
@@ -1311,8 +1314,6 @@ exports.getMyCamps = async (req, res) => {
   try {
     const { status } = req.query;
 
-    await updateCampStatuses();
-
     const filter = {
       bloodBankId: req.user.id,
     };
@@ -1581,15 +1582,7 @@ exports.getHospitalLocations = async (req, res) => {
       stage: { $in: ["bloodbank", "both"] },
       deadline: { $gt: new Date() },
       declinedByBloodBanks: { $nin: [req.user.id] },
-      location: {
-        $near: {
-          $geometry: {
-            type: "Point",
-            coordinates: bloodBank.location.coordinates,
-          },
-          $maxDistance: 50000,
-        },
-      },
+      "assignedBloodBanks.bloodBankId": req.user.id,
     }).populate("hospitalId", "name phone address location");
 
     // Format hospital data with request details

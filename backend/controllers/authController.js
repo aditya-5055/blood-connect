@@ -360,15 +360,14 @@ exports.donorRegister = async (req, res) => {
 
     return;
 
-  } catch (error) {
-    // ✅ THIS SAVES LIVES: Prints the EXACT reason MongoDB crashed to your terminal
-    console.error("🔴 MONGODB REGISTRATION CRASH:", error); 
-    
+  } catch (error) { 
+
     return res.status(500).json({
       success: false,
       message: error.message, // Send the real error to the frontend network tab
     });
   }
+  
 };
 // ─────────────────────────────────
 // @route  POST /api/auth/donor/login
@@ -557,11 +556,13 @@ exports.facilityRegister = async (req, res) => {
     return;
 
   } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: "Registration failed. Please try again.",
-      error: error.message,
-    });
+console.log("FACILITY REGISTER ERROR:", error);
+
+return res.status(500).json({
+  success: false,
+  message: error.message,
+  error,
+});
   }
 };
 

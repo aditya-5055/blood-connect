@@ -260,6 +260,9 @@ const Register = () => {
           [name]: name === "pincode" ? value.replace(/\D/g, "").slice(0, 6) : value,
         },
       });
+    } else if (["phone", "emergencyContact"].includes(name)) {
+      // Strip all non-digits and cap at 10 — prevents +91/spaces from breaking the regex
+      setFacilityFormData({ ...facilityFormData, [name]: value.replace(/\D/g, "").slice(0, 10) });
     } else {
       setFacilityFormData({ ...facilityFormData, [name]: value });
     }
@@ -858,7 +861,7 @@ const Register = () => {
               </div>
 
               {/* Category (conditional) */}
-              {facilityFormData.facilityType === "blood-bank" && (
+              {facilityFormData.facilityType && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Category

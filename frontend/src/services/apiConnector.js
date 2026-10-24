@@ -22,7 +22,9 @@ axiosInstance.interceptors.response.use(
   (response) => response,
   (error) => {
     const status = error.response?.status;
-    if (status === 401) {
+    const url = error.config?.url || "";
+    // Redirect to login on 401 unless the request was to an auth route (login/signup)
+    if (status === 401 && !url.includes("/api/auth/")) {
       store.dispatch(logout());
       window.location.href = "/donor/login";
     }

@@ -45,7 +45,6 @@ const adminSchema = new mongoose.Schema(
 );
 
 // Hash password before saving
-// Hash password before saving
 adminSchema.pre("save", async function () {
   // If password is not modified, just return (Mongoose handles the rest)
   if (!this.isModified("password")) return;

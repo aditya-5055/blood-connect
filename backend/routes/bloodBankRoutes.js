@@ -6,7 +6,6 @@ const {
   getInventory,
   updateInventory,
   getDonationRequests,
-  processDonationRequest,
   completeDonation,
   markNoShow,
   markDonorAttendance,
@@ -21,6 +20,12 @@ const {
   updateCampStatus,
   getTransactionHistory,
   getHospitalLocations,
+  // Slot Management Endpoints
+  getBloodBankSlots,
+  createSlot,
+  editSlot,
+  deleteSlot,
+  getSlotBookings,
 } = require("../controllers/bloodBankController");
 const { auth, isBloodBank } = require("../middleware/authMiddleware");
 
@@ -32,9 +37,15 @@ router.put("/update-profile", auth, isBloodBank, updateProfile);
 router.get("/inventory", auth, isBloodBank, getInventory);
 router.post("/inventory/update", auth, isBloodBank, updateInventory);
 
-// Donation request routes (Proactive)
+// Slot Management routes
+router.get("/slots", auth, isBloodBank, getBloodBankSlots);
+router.post("/slots", auth, isBloodBank, createSlot);
+router.put("/slots/:id", auth, isBloodBank, editSlot);
+router.delete("/slots/:id", auth, isBloodBank, deleteSlot);
+router.get("/slots/:id/bookings", auth, isBloodBank, getSlotBookings);
+
+// Donation request routes (Proactive Bookings list/action)
 router.get("/donation-requests", auth, isBloodBank, getDonationRequests);
-router.put("/donation-requests/:id", auth, isBloodBank, processDonationRequest);
 router.put("/complete-donation/:id", auth, isBloodBank, completeDonation);
 router.put("/mark-no-show/:id", auth, isBloodBank, markNoShow);
 

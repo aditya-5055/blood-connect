@@ -103,6 +103,19 @@ const bloodRequestSchema = new mongoose.Schema(
         ref: "Facility",
       },
     ],
+    assignedBloodBanks: [
+      {
+        bloodBankId: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Facility",
+          required: true,
+        },
+        assignedAt: {
+          type: Date,
+          default: Date.now,
+        },
+      },
+    ],
     completedAt: {
       type: Date,
     },
@@ -141,5 +154,6 @@ bloodRequestSchema.pre("save", async function () {
   // No next() needed for async functions!
 });
 bloodRequestSchema.index({ location: "2dsphere" });
+bloodRequestSchema.index({ "assignedBloodBanks.bloodBankId": 1 });
 
 module.exports = mongoose.model("BloodRequest", bloodRequestSchema);

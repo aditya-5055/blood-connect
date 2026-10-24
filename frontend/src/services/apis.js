@@ -32,7 +32,6 @@ export const PUBLIC_APIS = {
 // DONOR APIs
 // ─────────────────────────────────
 export const DONOR_APIS = {
-  
   GET_PROFILE: "/api/donor/profile",
   UPDATE_PROFILE: "/api/donor/update-profile",
   TOGGLE_AVAILABILITY: "/api/donor/toggle-availability",
@@ -40,18 +39,17 @@ export const DONOR_APIS = {
   GET_NEARBY_BLOOD_BANKS: "/api/donor/nearby-bloodbanks",
   GET_NEARBY_CAMPS: "/api/donor/nearby-camps",
   GET_NEARBY_REQUESTS: "/api/donor/nearby-requests",
-  PROACTIVE_DONATE: "/api/donor/proactive-donate",
-  GET_MY_DONATION_REQUESTS: "/api/donor/my-donation-requests",
   
-  // ✅ UPDATED: Added generic update status for Confirm/Decline logic
-  UPDATE_REQUEST_STATUS: (id) => `/api/donor/update-request/${id}`,
-  CONFIRM_INVITE: (id) => `/api/donor/confirm-invite/${id}`, 
+  // Slot Booking Endpoints
+  GET_BANK_SLOTS: (bankId) => `/api/donor/bloodbanks/${bankId}/slots`,
+  BOOK_SLOT: "/api/donor/book-slot",
+  GET_MY_BOOKINGS: "/api/donor/my-bookings",
+  CANCEL_BOOKING: (id) => `/api/donor/cancel-booking/${id}`,
   
   REGISTER_FOR_CAMP: (id) => `/api/donor/register-camp/${id}`,
   ACCEPT_BLOOD_REQUEST: (id) => `/api/donor/accept-request/${id}`,
   DECLINE_BLOOD_REQUEST: (id) => `/api/donor/decline-request/${id}`,
   GET_MY_CAMPS: "/api/donor/my-camps",
-  CANCEL_REQUEST: (id) => `/api/donor/cancel-request/${id}`,
 };
 
 // ─────────────────────────────────
@@ -64,8 +62,13 @@ export const BLOOD_BANK_APIS = {
   UPDATE_INVENTORY: "/api/bloodbank/inventory/update",
   GET_DONATION_REQUESTS: "/api/bloodbank/donation-requests",
   
-  // ✅ MARK NO-SHOW & COMPLETE Logic
-  PROCESS_DONATION_REQUEST: (id) => `/api/bloodbank/donation-requests/${id}`,
+  // Slot Management Endpoints
+  GET_SLOTS: "/api/bloodbank/slots",
+  CREATE_SLOT: "/api/bloodbank/slots",
+  EDIT_SLOT: (id) => `/api/bloodbank/slots/${id}`,
+  DELETE_SLOT: (id) => `/api/bloodbank/slots/${id}`,
+  GET_SLOT_BOOKINGS: (id) => `/api/bloodbank/slots/${id}/bookings`,
+  
   COMPLETE_DONATION: (id) => `/api/bloodbank/complete-donation/${id}`,
   MARK_NO_SHOW: (id) => `/api/bloodbank/mark-no-show/${id}`,
 
@@ -124,4 +127,11 @@ export const REPORT_APIS = {
   GET_CAMP_REPORT: "/api/reports/camps",
   GET_PROACTIVE_REPORT: "/api/reports/proactive",
   GET_INVENTORY_REPORT: "/api/reports/inventory",
+};
+
+// ─────────────────────────────────
+// AI SMART ASSIST APIs
+// ─────────────────────────────────
+export const AI_APIS = {
+  PARSE_BLOOD_REQUEST: "/api/ai/parse-blood-request",
 };

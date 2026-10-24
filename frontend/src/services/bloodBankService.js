@@ -26,8 +26,28 @@ export const getDonationRequests = async () => {
   return response.data;
 };
 
-export const processDonationRequest = async (id, data) => {
-  const response = await apiConnector("PUT", BLOOD_BANK_APIS.PROCESS_DONATION_REQUEST(id), data);
+export const getBloodBankSlots = async () => {
+  const response = await apiConnector("GET", BLOOD_BANK_APIS.GET_SLOTS);
+  return response.data;
+};
+
+export const createSlot = async (data) => {
+  const response = await apiConnector("POST", BLOOD_BANK_APIS.CREATE_SLOT, data);
+  return response.data;
+};
+
+export const editSlot = async (id, data) => {
+  const response = await apiConnector("PUT", BLOOD_BANK_APIS.EDIT_SLOT(id), data);
+  return response.data;
+};
+
+export const deleteSlot = async (id) => {
+  const response = await apiConnector("DELETE", BLOOD_BANK_APIS.DELETE_SLOT(id));
+  return response.data;
+};
+
+export const getSlotBookings = async (id) => {
+  const response = await apiConnector("GET", BLOOD_BANK_APIS.GET_SLOT_BOOKINGS(id));
   return response.data;
 };
 
